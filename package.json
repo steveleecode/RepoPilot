@@ -1,0 +1,39 @@
+{
+  "name": "repopilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first repository readiness analysis and validation for AI-assisted development.",
+  "bin": {
+    "repopilot": "apps/cli/dist/index.js"
+  },
+  "packageManager": "pnpm@11.6.0",
+  "engines": {
+    "node": ">=22 <26",
+    "pnpm": ">=11"
+  },
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "repopilot": "node apps/cli/dist/index.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@next/eslint-plugin-next": "^15.5.22",
+    "@playwright/test": "^1.54.1",
+    "@types/node": "^24.1.0",
+    "eslint": "^9.32.0",
+    "eslint-config-next": "^15.4.4",
+    "prettier": "^3.6.2",
+    "turbo": "^2.5.5",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0",
+    "vitest": "^3.2.4"
+  }
+}

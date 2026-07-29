@@ -1,0 +1,22 @@
+{
+  "name": "@repopilot/validator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@repopilot/generator": "workspace:*",
+    "@repopilot/shared": "workspace:*",
+    "yaml": "^2.8.0"
+  }
+}
