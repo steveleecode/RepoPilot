@@ -7,5 +7,8 @@
 - Do not load target repository source code into the RepoPilot process.
 - Every detected repository fact must include evidence.
 - Keep generated output as proposed changes until validators pass.
+- Respect `.repopilot/config.yaml`; do not bypass deterministic policy authorization.
+- Never push, open pull requests, or perform destructive actions unless policy permits the action and required approvals are present.
+- Parallel writes require isolated worktrees and non-overlapping task scopes.
 - Do not add telemetry, external AI calls, or GitHub authentication in the foundation milestone.
 - Keep package-specific contracts inside their owning package unless they are truly shared.

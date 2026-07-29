@@ -10,6 +10,7 @@ export default defineConfig({
         "./packages/instruction-linter/src/index.ts",
         import.meta.url
       ).pathname,
+      "@repopilot/policy": new URL("./packages/policy/src/index.ts", import.meta.url).pathname,
       "@repopilot/shared": new URL("./packages/shared/src/index.ts", import.meta.url).pathname,
       "@repopilot/validator": new URL("./packages/validator/src/index.ts", import.meta.url).pathname
     }

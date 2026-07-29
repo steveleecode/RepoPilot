@@ -8,12 +8,15 @@
 - `packages/generator` owns proposed change and template rendering contracts.
 - `packages/validator` owns pre-write validation pipeline contracts and validators.
 - `packages/instruction-linter` owns deterministic checks for repository agent instructions.
+- `packages/policy` owns versioned execution-policy configuration, presets, resolution order, authorization checks, task parallel-safety, and audit records.
 - `packages/shared` holds only cross-package schemas, results, errors, filesystem, and logging interfaces.
 - `packages/ui` holds reusable accessible UI primitives.
 
 ## Data Flow
 
 Repository files are read as untrusted input. The analyzer produces evidence-backed facts. The generator turns facts and validated variables into proposed changes without writing files. Validators inspect those proposed changes and report structured results. The UI and CLI explain the current state without fabricating unavailable analysis.
+
+Execution policy is resolved from built-in safe defaults, presets, repository config, command-line overrides, and temporary approvals. The resolved policy is used by deterministic authorization functions before applying files, committing, pushing, opening pull requests, or running parallel write tasks.
 
 ## Deterministic Analysis Before AI
 
@@ -26,6 +29,8 @@ Generation can introduce syntax errors, missing references, or conflicting paths
 ## Trust Boundaries
 
 Analyzed repository contents are untrusted. RepoPilot does not execute repository scripts during analysis, does not load repository code, does not collect environment variables, and does not print secrets.
+
+Policy enforcement is a trust boundary. LLM recommendations cannot authorize Git actions directly. Pushes to default, protected, production, or release branches are blocked by deterministic code even if an agent requests them.
 
 ## Future Execution Sandbox
 

@@ -42,10 +42,17 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.9.0)
 
-  apps/cli: {}
+  apps/cli:
+    dependencies:
+      '@repopilot/policy':
+        specifier: workspace:*
+        version: link:../../packages/policy
 
   apps/web:
     dependencies:
+      '@repopilot/policy':
+        specifier: workspace:*
+        version: link:../../packages/policy
       '@repopilot/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -95,6 +102,18 @@ importers:
       '@repopilot/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/policy:
+    dependencies:
+      '@repopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      yaml:
+        specifier: ^2.8.0
+        version: 2.9.0
+      zod:
+        specifier: ^4.0.14
+        version: 4.4.3
 
   packages/shared:
     dependencies:

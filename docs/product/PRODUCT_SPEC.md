@@ -20,6 +20,8 @@ AI tools often fail when repositories have unclear commands, stale instructions,
 4. Validate proposed output before writing files.
 5. Explain the validated result and remaining gaps.
 
+Repository owners can configure execution policy in `.repopilot/config.yaml`, through the CLI, and in the dashboard settings view. The policy controls parallel work, commits, pushes, pull requests, validation gates, approvals, autonomy, and failure handling.
+
 ## Initial Strategy
 
 RepoPilot starts CLI-first with a local dashboard shell. The CLI is the first trustworthy execution surface because it can inspect the developer environment directly and avoid hosted access or authentication complexity.
@@ -32,6 +34,7 @@ RepoPilot starts CLI-first with a local dashboard shell. The CLI is the first tr
 - Telemetry.
 - Repository script execution during analysis.
 - Production deployment.
+- Automatic merge behavior.
 
 ## Future GitHub App Direction
 

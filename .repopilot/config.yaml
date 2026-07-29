@@ -1,0 +1,59 @@
+version: 1
+execution:
+  autonomy: balanced
+  parallelism:
+    enabled: true
+    max_workers: 3
+    strategy: isolated_worktrees
+    allow_parallel_reads: true
+    allow_parallel_writes: true
+    require_independent_scopes: true
+  commits:
+    enabled: true
+    strategy: after_feature
+    require_clean_validation: true
+    allow_checkpoint_commits: false
+    message_format: conventional
+    sign_commits: false
+  pushes:
+    enabled: false
+    strategy: never
+    remote: origin
+    allowed_branch_patterns:
+      - "repopilot/**"
+      - "agent/**"
+      - "codex/**"
+    prohibited_branches:
+      - main
+      - master
+      - production
+      - "release/**"
+    allow_force_push: false
+  pull_requests:
+    enabled: false
+    create_as_draft: true
+    require_validation: true
+    require_human_approval: true
+  validation:
+    before_commit:
+      - format
+      - lint
+      - typecheck
+      - relevant_tests
+    before_push:
+      - unit_tests
+      - build
+    before_pull_request:
+      - full_check
+    stop_on_failure: true
+  approvals:
+    before_apply: false
+    before_commit: false
+    before_push: true
+    before_pull_request: true
+    before_destructive_action: true
+  failure_handling:
+    preserve_worktree: true
+    create_failure_report: true
+    allow_partial_commit: false
+    retry_limit: 2
