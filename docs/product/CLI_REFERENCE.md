@@ -8,6 +8,11 @@ pnpm repopilot <command>
 
 The package binary is named `repopilot`; the root script runs the built CLI from `apps/cli/dist/index.js`.
 
+Commands that operate on a repository accept `--repo <path>` and default to the current directory.
+Commands that return data accept `--json` for stable, machine-readable output. Invalid command usage
+returns exit code `2`; environment failures return `3`; invalid policy configuration returns `4`; and
+analysis failures return `5`.
+
 ## Help
 
 ```bash
@@ -39,6 +44,35 @@ Inspects the RepoPilot development environment. It reports:
 - Whether the current directory is a Git repository.
 
 The command returns a nonzero exit code when a required dependency is missing.
+
+## Init
+
+```bash
+repopilot init --repo ./my-project
+```
+
+Initializes `.repopilot/config.yaml` using the balanced preset. This is a top-level alias for
+`repopilot policy init` and refuses to overwrite an existing configuration.
+
+## Scan
+
+```bash
+repopilot scan --repo ./my-project
+repopilot scan --repo ./my-project --json
+```
+
+Runs deterministic repository analysis and reports evidence-backed metadata, manifests, package
+managers, CI workflows, and agent instruction files. Scan does not execute target-repository scripts
+or load target source code into RepoPilot.
+
+## Validate
+
+```bash
+repopilot validate --repo ./my-project
+```
+
+Validates the repository execution-policy configuration. This is a top-level alias for
+`repopilot policy validate`.
 
 ## Policy Show
 
@@ -88,7 +122,9 @@ pnpm repopilot policy set pushes.enabled false
 pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 ```
 
-This milestone does not execute agent work. The command resolves the policy for a planned run and displays the effective configuration. One-run flags do not edit `.repopilot/config.yaml`.
+This milestone does not execute agent work. The command resolves the policy for a planned run and displays the effective configuration. One-run flags do not edit `.repopilot/config.yaml`. Use
+`--non-interactive` to declare automation intent; it is included in JSON output and will be consumed by
+the future workflow runner.
 
 Supported one-run flags:
 

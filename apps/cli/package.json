@@ -19,6 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@repopilot/analyzer": "workspace:*",
     "@repopilot/policy": "workspace:*"
   }
 }

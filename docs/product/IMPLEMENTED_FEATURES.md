@@ -30,13 +30,20 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 - `--help`
 - `version`
 - `doctor`
+- `init` as a top-level policy initialization command
+- `scan` with text and JSON output
+- `validate` as a top-level policy validation command
 - `policy show`
 - `policy validate`
 - `policy init`
 - `policy set <path> <value>`
 - `run` with one-run policy overrides
 
-`doctor` inspects the RepoPilot development environment and reports Node, pnpm, Git, the current directory, and whether the directory is a Git repository.
+Repository-oriented commands accept `--repo <path>`. Data-producing commands support JSON output,
+unknown flags are rejected, and command failures use stable categorized exit codes.
+
+`doctor` inspects the RepoPilot development environment, validates the supported Node major-version
+range, and reports pnpm, Git, the current directory, and whether the directory is a Git repository.
 
 ## Analyzer
 

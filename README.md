@@ -53,6 +53,10 @@ CLI examples:
 pnpm repopilot --help
 pnpm repopilot version
 pnpm repopilot doctor
+pnpm repopilot scan --repo .
+pnpm repopilot scan --repo . --json
+pnpm repopilot init --repo ../another-repository
+pnpm repopilot validate --repo ../another-repository
 pnpm repopilot policy show
 pnpm repopilot policy validate
 pnpm repopilot policy init

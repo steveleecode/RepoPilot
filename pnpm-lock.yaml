@@ -44,6 +44,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@repopilot/analyzer':
+        specifier: workspace:*
+        version: link:../../packages/analyzer
       '@repopilot/policy':
         specifier: workspace:*
         version: link:../../packages/policy
