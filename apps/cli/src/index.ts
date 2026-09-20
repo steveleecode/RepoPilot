@@ -14,6 +14,7 @@ import {
   writeRepositoryConfig,
   type PolicyOverride
 } from "@repopilot/policy";
+import { WorkflowStore, type RunSnapshot } from "@repopilot/workflow";
 
 export const cliExitCode = {
   success: 0,
@@ -21,7 +22,8 @@ export const cliExitCode = {
   usageError: 2,
   environmentError: 3,
   invalidConfiguration: 4,
-  analysisError: 5
+  analysisError: 5,
+  workflowError: 6
 } as const;
 
 export interface CliResult {
@@ -53,6 +55,10 @@ Usage:
   repopilot init [--repo path] [--json]
   repopilot scan [--repo path] [--json]
   repopilot validate [--repo path] [--json]
+  repopilot runs create <objective> [--provider name] [--repo path] [--json]
+  repopilot runs list [--repo path] [--json]
+  repopilot status <run-id> [--repo path] [--json]
+  repopilot resume <run-id> [--repo path] [--json]
   repopilot policy show [--repo path] [--json]
   repopilot policy validate [--repo path] [--json]
   repopilot policy init [--repo path] [--json]
@@ -66,6 +72,9 @@ Commands:
   init      Initialize repository policy using the balanced preset.
   scan      Analyze repository metadata and print evidence-backed facts.
   validate  Validate the repository policy configuration.
+  runs      Create and list durable workflow runs.
+  status    Show a reconstructed workflow run snapshot.
+  resume    Move an interrupted or failed run back to planning.
   policy    Show, validate, initialize, or update execution policy.
   run       Preview the resolved policy for a future RepoPilot run.
 
@@ -90,6 +99,9 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<CliRe
       return await handlePolicyCommand(["validate", ...commandArgs], cwd);
     }
     if (command === "policy") return await handlePolicyCommand(commandArgs, cwd);
+    if (command === "runs") return await handleRunsCommand(commandArgs, cwd);
+    if (command === "status") return await handleStatusCommand(commandArgs, cwd);
+    if (command === "resume") return await handleResumeCommand(commandArgs, cwd);
     if (command === "run") return await handleRunCommand(commandArgs, cwd);
     throw new CliUsageError(`Unknown command: ${command}`);
   } catch (error) {
@@ -342,6 +354,83 @@ async function handleRunCommand(args: string[], cwd: string): Promise<CliResult>
   );
 }
 
+async function handleRunsCommand(args: string[], cwd: string): Promise<CliResult> {
+  const subcommand = args[0] ?? "list";
+  const { values, positionals } = parseArgs({
+    args: args.slice(1),
+    allowPositionals: true,
+    strict: true,
+    options: { ...commonOptions(), provider: { type: "string" } }
+  });
+  if (values.help) return textResult(helpText);
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
+  const store = new WorkflowStore(repositoryRoot);
+
+  if (subcommand === "list") {
+    requireNoPositionals(positionals, "repopilot runs list [--repo path] [--json]");
+    if (values.provider) throw new CliUsageError("--provider is only valid with runs create.");
+    const runs = await store.listRuns();
+    return values.json
+      ? jsonResult(cliExitCode.success, { ok: true, command: "runs list", repositoryRoot, runs })
+      : textResult(formatRunList(runs));
+  }
+  if (subcommand === "create") {
+    if (positionals.length === 0) {
+      throw new CliUsageError(
+        "Usage: repopilot runs create <objective> [--provider name] [--repo path] [--json]"
+      );
+    }
+    const objective = positionals.join(" ").trim();
+    const provider = stringOption(values.provider, "--provider");
+    const run = await store.createRun({ objective, ...(provider ? { provider } : {}) });
+    return values.json
+      ? jsonResult(cliExitCode.success, {
+          ok: true,
+          command: "runs create",
+          repositoryRoot,
+          run
+        })
+      : textResult(`Created workflow run ${run.id}\n${formatRun(run)}`);
+  }
+  throw new CliUsageError(`Unknown runs command: ${subcommand}`);
+}
+
+async function handleStatusCommand(args: string[], cwd: string): Promise<CliResult> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    strict: true,
+    options: commonOptions()
+  });
+  if (values.help) return textResult(helpText);
+  if (positionals.length !== 1 || !positionals[0]) {
+    throw new CliUsageError("Usage: repopilot status <run-id> [--repo path] [--json]");
+  }
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
+  const run = await new WorkflowStore(repositoryRoot).loadRun(positionals[0]);
+  return values.json
+    ? jsonResult(cliExitCode.success, { ok: true, command: "status", repositoryRoot, run })
+    : textResult(formatRun(run));
+}
+
+async function handleResumeCommand(args: string[], cwd: string): Promise<CliResult> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    strict: true,
+    options: commonOptions()
+  });
+  if (values.help) return textResult(helpText);
+  if (positionals.length !== 1 || !positionals[0]) {
+    throw new CliUsageError("Usage: repopilot resume <run-id> [--repo path] [--json]");
+  }
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
+  const run = await new WorkflowStore(repositoryRoot).resumeRun(positionals[0]);
+  return values.json
+    ? jsonResult(cliExitCode.success, { ok: true, command: "resume", repositoryRoot, run })
+    : textResult(`Resumed workflow run ${run.id}\n${formatRun(run)}`);
+}
+
 function parseRunOverrides(values: {
   parallel?: boolean | undefined;
   "max-workers"?: string | undefined;
@@ -392,6 +481,28 @@ function formatAnalysis(analysis: RepositoryAnalysis): string {
     `- Agent instruction files: ${analysis.agentInstructions.length}`,
     `- Evidence records: ${evidenceCount}`,
     `- Warnings: ${analysis.warnings.length}`
+  ].join("\n");
+}
+
+function formatRunList(runs: RunSnapshot[]): string {
+  if (runs.length === 0) return "RepoPilot runs\nNo workflow runs found.";
+  return [
+    "RepoPilot runs",
+    ...runs.map((run) => `- ${run.id} [${run.status}] ${run.objective}`)
+  ].join("\n");
+}
+
+function formatRun(run: RunSnapshot): string {
+  return [
+    `Run: ${run.id}`,
+    `Objective: ${run.objective}`,
+    `Status: ${run.status}`,
+    `Provider: ${run.provider ?? "not selected"}`,
+    `Tasks: ${run.tasks.length}`,
+    `Pending approvals: ${run.approvals.filter((approval) => approval.status === "pending").length}`,
+    `Artifacts: ${run.artifacts.length}`,
+    `Last event: ${run.lastSequence}`,
+    `Updated: ${run.updatedAt}`
   ].join("\n");
 }
 
@@ -453,6 +564,9 @@ function classifyError(error: unknown, command: string | undefined): number {
     return cliExitCode.invalidConfiguration;
   }
   if (command === "scan") return cliExitCode.analysisError;
+  if (command === "runs" || command === "status" || command === "resume") {
+    return cliExitCode.workflowError;
+  }
   return cliExitCode.generalError;
 }
 

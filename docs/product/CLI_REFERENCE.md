@@ -11,7 +11,7 @@ The package binary is named `repopilot`; the root script runs the built CLI from
 Commands that operate on a repository accept `--repo <path>` and default to the current directory.
 Commands that return data accept `--json` for stable, machine-readable output. Invalid command usage
 returns exit code `2`; environment failures return `3`; invalid policy configuration returns `4`; and
-analysis failures return `5`.
+analysis failures return `5`; workflow persistence or transition failures return `6`.
 
 ## Help
 
@@ -73,6 +73,37 @@ repopilot validate --repo ./my-project
 
 Validates the repository execution-policy configuration. This is a top-level alias for
 `repopilot policy validate`.
+
+## Workflow Runs
+
+```bash
+repopilot runs create "Add parser coverage" --provider codex
+repopilot runs list
+repopilot runs list --json
+```
+
+`runs create` creates a durable local workflow run. `runs list` reconstructs known runs from their
+event journals. Run state is stored under `.repopilot/runs/<run-id>/events.jsonl` and is excluded from
+Git by RepoPilot's own `.gitignore`.
+
+## Run Status
+
+```bash
+repopilot status <run-id>
+repopilot status <run-id> --json
+```
+
+Shows the reconstructed run status, provider, task count, pending approvals, artifacts, latest event
+sequence, and update timestamp.
+
+## Resume Run
+
+```bash
+repopilot resume <run-id>
+```
+
+Moves an interrupted or failed run back to `planning`. Completed and cancelled runs are terminal and
+cannot be resumed.
 
 ## Policy Show
 

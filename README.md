@@ -13,6 +13,7 @@ Implemented foundations:
 - Pre-write validators for generated JSON/YAML, referenced paths, referenced package scripts, and duplicate proposed paths.
 - Deterministic instruction linting for long files, duplicate headings, duplicate instructions, missing paths/scripts, and simple command conflicts.
 - Versioned execution policy in `.repopilot/config.yaml`, with presets, CLI commands, dashboard display, enforcement helpers, task parallel-safety checks, and audit records.
+- Durable local workflow runs backed by versioned append-only event journals.
 - Next.js dashboard shell with repository placeholders, validation timeline, command palette foundation, and Agent Policy settings.
 - CLI commands for doctor checks and policy inspection/update.
 - Unit, build, lint, typecheck, CI, and Playwright smoke-test coverage.
@@ -57,6 +58,10 @@ pnpm repopilot scan --repo .
 pnpm repopilot scan --repo . --json
 pnpm repopilot init --repo ../another-repository
 pnpm repopilot validate --repo ../another-repository
+pnpm repopilot runs create "Add parser coverage" --provider codex
+pnpm repopilot runs list
+pnpm repopilot status <run-id>
+pnpm repopilot resume <run-id>
 pnpm repopilot policy show
 pnpm repopilot policy validate
 pnpm repopilot policy init
@@ -73,6 +78,7 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 - `packages/validator`: validation pipeline and proposed-change validators.
 - `packages/instruction-linter`: deterministic linter for agent instruction files.
 - `packages/policy`: execution policy presets, schema validation, deterministic authorization, task parallel-safety, and audit records.
+- `packages/workflow`: persistent run, task, event, artifact, and approval state.
 - `packages/shared`: shared schemas, result utilities, errors, filesystem and logging interfaces.
 - `packages/ui`: accessible UI primitives used by the dashboard.
 - `templates`: future template families.

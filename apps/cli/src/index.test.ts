@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { WorkflowStore } from "@repopilot/workflow";
 import { describe, expect, it } from "vitest";
 import { cliExitCode, createDoctorReport, isSupportedNodeVersion, runCli } from "./index.js";
 
@@ -133,6 +134,46 @@ describe("RepoPilot CLI", () => {
     expect(result.exitCode).toBe(cliExitCode.usageError);
     expect(output.ok).toBe(false);
     expect(output.error.exitCode).toBe(cliExitCode.usageError);
+  });
+
+  it("creates, lists, inspects, and resumes persistent workflow runs", async () => {
+    const cwd = await fixture();
+    const created = await runCli(
+      ["node", "repopilot", "runs", "create", "Add durable state", "--provider", "codex", "--json"],
+      cwd
+    );
+    const createdOutput = JSON.parse(created.output) as { run: { id: string; status: string } };
+
+    const listed = await runCli(["node", "repopilot", "runs", "list", "--json"], cwd);
+    const status = await runCli(
+      ["node", "repopilot", "status", createdOutput.run.id, "--json"],
+      cwd
+    );
+    await new WorkflowStore(cwd).transitionRun(createdOutput.run.id, "interrupted");
+    const resumed = await runCli(
+      ["node", "repopilot", "resume", createdOutput.run.id, "--json"],
+      cwd
+    );
+
+    expect(created.exitCode).toBe(cliExitCode.success);
+    expect(createdOutput.run.status).toBe("created");
+    expect(JSON.parse(listed.output)).toMatchObject({ runs: [{ id: createdOutput.run.id }] });
+    expect(JSON.parse(status.output)).toMatchObject({ run: { id: createdOutput.run.id } });
+    expect(JSON.parse(resumed.output)).toMatchObject({ run: { status: "planning" } });
+  });
+
+  it("returns a stable workflow exit code for a missing run", async () => {
+    const cwd = await fixture();
+    const result = await runCli(
+      ["node", "repopilot", "status", "00000000-0000-4000-8000-000000000099", "--json"],
+      cwd
+    );
+
+    expect(result.exitCode).toBe(cliExitCode.workflowError);
+    expect(JSON.parse(result.output)).toMatchObject({
+      ok: false,
+      error: { exitCode: cliExitCode.workflowError }
+    });
   });
 });
 

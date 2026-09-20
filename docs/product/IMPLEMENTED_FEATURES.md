@@ -33,6 +33,8 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 - `init` as a top-level policy initialization command
 - `scan` with text and JSON output
 - `validate` as a top-level policy validation command
+- `runs create` and `runs list` for durable local workflow state
+- `status <run-id>` and `resume <run-id>`
 - `policy show`
 - `policy validate`
 - `policy init`
@@ -41,6 +43,13 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 
 Repository-oriented commands accept `--repo <path>`. Data-producing commands support JSON output,
 unknown flags are rejected, and command failures use stable categorized exit codes.
+
+## Workflow State
+
+`packages/workflow` provides versioned schemas and an append-only JSONL event journal for runs, tasks,
+artifacts, approvals, provider thread links, and notes. It reconstructs snapshots deterministically,
+enforces run and task status transitions, supports resuming interrupted or failed runs, and rejects
+corrupt or out-of-sequence journals. Local journals live under `.repopilot/runs/`.
 
 `doctor` inspects the RepoPilot development environment, validates the supported Node major-version
 range, and reports pnpm, Git, the current directory, and whether the directory is a Git repository.
@@ -115,7 +124,7 @@ RepoPilot still does not implement:
 
 - Full repository analysis beyond the initial detector list.
 - Real write application of generated files.
-- Agent task execution.
+- Agent provider execution.
 - Git worktree orchestration.
 - Actual automatic commit, push, or pull-request execution.
 - GitHub authentication.

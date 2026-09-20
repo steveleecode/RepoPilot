@@ -50,6 +50,9 @@ importers:
       '@repopilot/policy':
         specifier: workspace:*
         version: link:../../packages/policy
+      '@repopilot/workflow':
+        specifier: workspace:*
+        version: link:../../packages/workflow
 
   apps/web:
     dependencies:
@@ -157,6 +160,12 @@ importers:
       yaml:
         specifier: ^2.8.0
         version: 2.9.0
+
+  packages/workflow:
+    dependencies:
+      zod:
+        specifier: ^4.0.14
+        version: 4.4.3
 
 packages:
 

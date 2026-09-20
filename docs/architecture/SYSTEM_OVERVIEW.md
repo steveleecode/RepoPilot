@@ -9,6 +9,7 @@
 - `packages/validator` owns pre-write validation pipeline contracts and validators.
 - `packages/instruction-linter` owns deterministic checks for repository agent instructions.
 - `packages/policy` owns versioned execution-policy configuration, presets, resolution order, authorization checks, task parallel-safety, and audit records.
+- `packages/workflow` owns durable run state, event journals, state transitions, tasks, artifacts, and approvals.
 - `packages/shared` holds only cross-package schemas, results, errors, filesystem, and logging interfaces.
 - `packages/ui` holds reusable accessible UI primitives.
 
@@ -17,6 +18,10 @@
 Repository files are read as untrusted input. The analyzer produces evidence-backed facts. The generator turns facts and validated variables into proposed changes without writing files. Validators inspect those proposed changes and report structured results. The UI and CLI explain the current state without fabricating unavailable analysis.
 
 Execution policy is resolved from built-in safe defaults, presets, repository config, command-line overrides, and temporary approvals. The resolved policy is used by deterministic authorization functions before applying files, committing, pushing, opening pull requests, or running parallel write tasks.
+
+Workflow state is persisted as versioned append-only JSONL events under `.repopilot/runs/`. Snapshots
+are reconstructed from the journal so interrupted processes can inspect and resume work without asking
+an AI provider to recreate orchestration state.
 
 ## Deterministic Analysis Before AI
 

@@ -123,6 +123,21 @@ Responsibilities:
 
 Future execution layers must call this package before applying files, committing, pushing, opening pull requests, or parallelizing write tasks.
 
+## `packages/workflow`
+
+Persistent agentic-workflow state and transitions.
+
+Responsibilities:
+
+- Versioned run, task, event, artifact, and approval schemas.
+- Append-only JSONL event journals.
+- Deterministic snapshot reconstruction.
+- Run and task status-transition enforcement.
+- Provider-thread association.
+- Interrupted and failed run resumption.
+
+Workflow journals are local runtime state and are not committed to Git.
+
 ## `packages/ui`
 
 Reusable typed UI primitives.

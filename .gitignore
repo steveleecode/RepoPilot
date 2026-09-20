@@ -9,3 +9,4 @@ test-results/
 .pnpm-store/
 .env*
 !.env.example
+.repopilot/runs/
