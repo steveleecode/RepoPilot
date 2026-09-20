@@ -24,6 +24,11 @@ Shared path normalization rejects path traversal. Repository-relative paths are 
 
 Analyzer facts must include evidence. RepoPilot must not claim a repository fact was detected without a source path, source type, and description.
 
+Repository traversal is bounded by depth and entry-count limits, does not follow symbolic links, skips
+known dependency and build-output directories, and applies a byte limit before reading known metadata
+files. Git branch and dirty-state detection uses only read-only Git commands with hooks and filesystem
+monitoring disabled, plus time and output limits.
+
 ## Proposed Changes Before Writes
 
 Generated content is represented as proposed files or edits. Validators operate on proposed changes before write operations whenever possible.

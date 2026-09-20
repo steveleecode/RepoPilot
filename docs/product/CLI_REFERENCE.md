@@ -61,9 +61,11 @@ repopilot scan --repo ./my-project
 repopilot scan --repo ./my-project --json
 ```
 
-Runs deterministic repository analysis and reports evidence-backed metadata, manifests, package
-managers, CI workflows, and agent instruction files. Scan does not execute target-repository scripts
-or load target source code into RepoPilot.
+Runs a bounded deterministic repository analysis and reports evidence-backed Git state, languages,
+manifests, package scripts, workspace layouts, package managers, test/format/lint/type-check tools, CI
+workflows, and nested agent instruction files. Scan skips dependency and build outputs, does not follow
+symbolic links, caps traversal and metadata-file sizes, and reports limit or parse failures as warnings.
+It does not execute target-repository scripts or load target source code into RepoPilot.
 
 ## Validate
 

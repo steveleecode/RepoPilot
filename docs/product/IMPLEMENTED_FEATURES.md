@@ -56,11 +56,11 @@ range, and reports pnpm, Git, the current directory, and whether the directory i
 
 ## Analyzer
 
-`packages/analyzer` defines deterministic repository analysis contracts. Every detected fact includes evidence. The current detector recognizes:
+`packages/analyzer` defines deterministic repository analysis contracts. Every detected fact includes evidence. The current detector performs bounded metadata traversal and recognizes:
 
-- Git repository presence.
-- Top-level files.
-- `package.json`.
+- Git repository presence, current branch, and working-tree state through hardened read-only Git commands.
+- Top-level files and directories.
+- Nested `package.json` files and their scripts and dependency metadata.
 - `pnpm-lock.yaml`.
 - `yarn.lock`.
 - `package-lock.json`.
@@ -69,7 +69,14 @@ range, and reports pnpm, Git, the current directory, and whether the directory i
 - `Cargo.toml`.
 - `go.mod`.
 - `.github/workflows`.
-- `AGENTS.md`.
+- Nested `AGENTS.md` files.
+- pnpm, npm, Yarn, and Turborepo workspace configuration.
+- TypeScript, JavaScript, Python, Rust, and Go evidence.
+- Common test, formatting, linting, and type-checking tools.
+
+Traversal excludes dependency/build directories and symlinks, enforces depth, entry-count, metadata-size,
+Git timeout, and Git output limits, and emits evidence-backed warnings instead of silently swallowing
+malformed manifests or inaccessible metadata.
 
 ## Generator
 
@@ -122,7 +129,7 @@ The repository includes Vitest unit tests for analyzer, validator, instruction-l
 
 RepoPilot still does not implement:
 
-- Full repository analysis beyond the initial detector list.
+- Additional language ecosystems beyond the currently supported manifest and tool families.
 - Real write application of generated files.
 - Agent provider execution.
 - Git worktree orchestration.

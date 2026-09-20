@@ -8,7 +8,7 @@ RepoPilot is an early foundation. The CLI, web shell, typed contracts, determini
 
 Implemented foundations:
 
-- Evidence-backed repository analysis for top-level manifests, lockfiles, Git metadata, workflows, and agent instructions.
+- Bounded evidence-backed repository analysis for nested manifests, scripts, workspace layouts, tool configurations, Git metadata, workflows, and agent instructions.
 - Deterministic generation contracts and template rendering that returns proposed files without writing them.
 - Pre-write validators for generated JSON/YAML, referenced paths, referenced package scripts, and duplicate proposed paths.
 - Deterministic instruction linting for long files, duplicate headings, duplicate instructions, missing paths/scripts, and simple command conflicts.

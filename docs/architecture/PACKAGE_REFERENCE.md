@@ -50,17 +50,20 @@ Deterministic repository analysis contracts and initial detection.
 
 Responsibilities:
 
-- Repository metadata.
+- Bounded repository metadata traversal with explicit limits.
+- Read-only Git branch and working-tree inspection.
 - Detected languages.
 - Package managers.
-- Manifests.
+- Nested manifests and package scripts.
+- Workspace configuration and package patterns.
 - Scripts and commands.
 - Tool categories.
 - CI workflows.
 - Agent instruction files.
 - Evidence and warnings.
 
-Current detection is intentionally narrow and evidence-backed.
+Detection never follows symlinks, skips dependency and build outputs, reads only known metadata files,
+and reports parse, access, size, and traversal-limit failures as evidence-backed warnings.
 
 ## `packages/generator`
 

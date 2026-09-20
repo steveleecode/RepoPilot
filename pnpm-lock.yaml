@@ -93,6 +93,9 @@ importers:
       '@repopilot/shared':
         specifier: workspace:*
         version: link:../shared
+      yaml:
+        specifier: ^2.8.0
+        version: 2.9.0
 
   packages/generator:
     dependencies:
