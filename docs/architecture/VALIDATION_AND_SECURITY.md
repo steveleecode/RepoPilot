@@ -16,6 +16,23 @@ RepoPilot currently follows these boundaries:
 - Do not authenticate with GitHub.
 - Do not merge pull requests.
 
+## Local Execution Boundary
+
+`packages/executor` provides the only local subprocess primitive intended for future workflow use. It:
+
+- Selects executables from trusted code-owned command definitions, never raw provider command text.
+- Uses exact allowlisted argument vectors and invokes the executable directly with `shell: false`.
+- Rejects absolute, traversing, out-of-scope, missing, and symlink-escaping working directories.
+- Starts with no inherited environment and accepts only explicitly allowlisted variables.
+- Enforces time and combined-output ceilings that requests may only lower, supports cancellation, and
+  escalates termination after a bounded grace period.
+- Redacts injected secret values and common credential-shaped output before returning structured
+  results.
+
+This is a process-level safety boundary, not kernel isolation. Callers must persist its structured
+authorization and execution results in workflow audit state. No current CLI or analysis path executes
+repository commands.
+
 ## Path Safety
 
 Shared path normalization rejects path traversal. Repository-relative paths are normalized by removing empty and `.` segments and rejecting `..`.
@@ -34,7 +51,7 @@ monitoring disabled, plus time and output limits.
 Generated content is represented as proposed files or edits. Validators operate on proposed changes before write operations whenever possible.
 
 The workflow journal enforces validation and review gates: a running workflow cannot transition
-directly to completed, and validation cannot transition directly to completed. The Phase 5 engine is
+directly to completed, and validation cannot transition directly to completed. The current engine is
 limited to read-only planning requests and does not execute target-repository commands or apply output.
 
 ## Validation Commands

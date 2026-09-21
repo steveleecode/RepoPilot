@@ -27,9 +27,10 @@ Responsibilities:
 - Initialize, validate, show, and update execution policy config.
 - Analyze repository metadata.
 - Display one-run policy override previews.
+- Execute durable read-only workflows through the deterministic fake provider.
 
-The CLI does not yet apply generated files, invoke AI providers, execute target-repository commands,
-commit, push, or open pull requests.
+The CLI does not yet apply generated files, invoke live AI providers, execute target-repository
+commands, commit, push, or open pull requests.
 
 ## `packages/shared`
 
@@ -66,6 +67,24 @@ Responsibilities:
 
 Detection never follows symlinks, skips dependency and build outputs, reads only known metadata files,
 and reports parse, access, size, and traversal-limit failures as evidence-backed warnings.
+
+## `packages/executor`
+
+Trusted local command-execution boundary.
+
+Responsibilities:
+
+- Register code-owned command definitions with unique IDs and fixed executable paths.
+- Authorize only exact additional argument variants.
+- Constrain real working directories to configured scopes inside the repository root.
+- Build a child environment only from explicitly supplied, allowlisted variables.
+- Execute without a shell and without forwarding stdin.
+- Enforce timeout, combined-output, cancellation, and termination-grace limits.
+- Redact known values and credential-shaped output.
+- Return structured authorization and execution results suitable for workflow audit persistence.
+
+This package provides process isolation controls, not an OS-level container. It is deliberately not
+wired into repository analysis or the CLI during this phase.
 
 ## `packages/generator`
 
@@ -179,7 +198,8 @@ Responsibilities:
   limits to decide which tasks may run together.
 
 This milestone executes read-only planning tasks only. It does not run target-repository commands or
-apply provider output; sandboxed execution and proposal application remain separate later phases.
+apply provider output; connecting the execution boundary and proposal application remain separate
+later phases.
 
 ## `packages/ui`
 

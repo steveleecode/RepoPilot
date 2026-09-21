@@ -16,6 +16,7 @@ Implemented foundations:
 - Durable local workflow runs backed by versioned append-only event journals.
 - Vendor-neutral agent-provider contracts with deterministic fake and transport-injected Codex adapters.
 - Deterministic workflow orchestration with persisted discovery, planning, authorization, execution, validation, and review gates.
+- A bounded local command-execution boundary with a trusted catalog, argument and working-directory authorization, environment isolation, cancellation, output limits, and redaction.
 - Next.js dashboard shell with repository placeholders, validation timeline, command palette foundation, and Agent Policy settings.
 - CLI commands for doctor checks and policy inspection/update.
 - Unit, build, lint, typecheck, CI, and Playwright smoke-test coverage.
@@ -79,6 +80,7 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 - `apps/web`: Next.js App Router dashboard shell.
 - `apps/cli`: `repopilot` command line app.
 - `packages/analyzer`: deterministic repository evidence contracts and initial detection.
+- `packages/executor`: bounded, no-shell command authorization and local subprocess execution.
 - `packages/generator`: generation plan contracts and deterministic template rendering.
 - `packages/validator`: validation pipeline and proposed-change validators.
 - `packages/instruction-linter`: deterministic linter for agent instruction files.
@@ -110,4 +112,8 @@ Execution policy is configured in `.repopilot/config.yaml`. Built-in safe defaul
 
 ## Security Boundaries
 
-RepoPilot does not collect environment variables, print secrets, add telemetry, make external AI calls, or authenticate with GitHub in this milestone. Future execution of repository commands must happen behind an explicit sandbox boundary.
+RepoPilot does not collect ambient environment variables, print known secrets, add telemetry, make
+external AI calls, or authenticate with GitHub in this milestone. The local executor is an explicit
+process boundary: it accepts only trusted catalog entries, does not invoke a shell, and receives an
+empty environment unless variables are deliberately injected. It is not an OS-level container or
+remote sandbox, and no CLI or analysis path invokes target-repository commands yet.

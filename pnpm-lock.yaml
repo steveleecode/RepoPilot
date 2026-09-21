@@ -103,6 +103,12 @@ importers:
         specifier: ^2.8.0
         version: 2.9.0
 
+  packages/executor:
+    dependencies:
+      '@repopilot/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/generator:
     dependencies:
       '@repopilot/shared':

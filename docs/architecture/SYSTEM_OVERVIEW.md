@@ -5,6 +5,7 @@
 - `apps/web` renders the local dashboard shell.
 - `apps/cli` exposes the `repopilot` executable.
 - `packages/analyzer` owns deterministic repository analysis contracts and detectors.
+- `packages/executor` owns trusted command authorization and bounded local subprocess execution.
 - `packages/generator` owns proposed change and template rendering contracts.
 - `packages/validator` owns pre-write validation pipeline contracts and validators.
 - `packages/instruction-linter` owns deterministic checks for repository agent instructions.
@@ -48,9 +49,15 @@ Analyzed repository contents are untrusted. RepoPilot does not execute repositor
 
 Policy enforcement is a trust boundary. LLM recommendations cannot authorize Git actions directly. Pushes to default, protected, production, or release branches are blocked by deterministic code even if an agent requests them.
 
-## Future Execution Sandbox
+## Execution Boundary
 
-Future command execution should run in a constrained sandbox with explicit command allowlists, timeouts, redacted output, and a clear separation between analysis and execution.
+The local execution boundary resolves commands from a trusted catalog rather than provider-supplied
+command lines. It never invokes a shell, accepts only exact argument variants, constrains working
+directories to real paths inside the repository, starts with an empty environment, and enforces time,
+output, cancellation, and redaction controls. Results are structured for durable audit storage.
+
+This process boundary is not an OS-level container or hosted sandbox. It is not connected to analysis
+or the CLI yet, so repository scripts remain unexecuted in the current product workflow.
 
 ## Future GitHub Integration
 

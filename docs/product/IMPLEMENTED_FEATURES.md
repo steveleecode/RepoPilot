@@ -82,6 +82,17 @@ It also produces stable dependency-ordered task batches and uses policy scope-ov
 unsafe work out of the same batch. It does not execute repository scripts, apply generated changes, or
 perform Git mutations.
 
+## Execution Boundary
+
+`packages/executor` provides a provider-neutral `CommandExecutor` contract and a bounded local
+implementation. Commands must be registered in a trusted catalog; arbitrary command lines are not
+accepted. Additional arguments must exactly match an allowed variant, working directories are checked
+lexically and through real paths, and subprocesses run without a shell or inherited environment.
+
+Execution results distinguish completion, non-zero failure, denial, timeout, output-limit termination,
+cancellation, and spawn failure. Captured output is bounded and redacted. This boundary is not yet
+wired to the CLI or workflow engine and is not a substitute for OS-level container isolation.
+
 `doctor` inspects the RepoPilot development environment, validates the supported Node major-version
 range, and reports pnpm, Git, the current directory, and whether the directory is a Git repository.
 
@@ -164,6 +175,8 @@ RepoPilot still does not implement:
 - Real write application of generated files.
 - Live agent provider execution.
 - Live Codex SDK/App Server transport and authentication.
+- OS-level container or remote execution sandboxing.
+- Workflow/CLI execution of target-repository commands.
 - Git worktree orchestration.
 - Actual automatic commit, push, or pull-request execution.
 - GitHub authentication.
