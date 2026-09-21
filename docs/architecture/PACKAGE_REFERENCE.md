@@ -150,10 +150,12 @@ Agent-provider contracts and adapters.
 Responsibilities:
 
 - Capability discovery and provider health checks.
+- Provider registration, deterministic lookup, and duplicate-ID rejection.
 - Start, resume, and cancel lifecycle methods.
 - Normalized asynchronous provider events and structured results.
 - A deterministic fake provider for workflow and contract tests.
 - A transport-injected Codex adapter with no built-in authentication or external calls.
+- Terminal-event enforcement and normalization of transport failures.
 
 RepoPilot remains the workflow and policy authority. Provider events cannot authorize writes, Git
 actions, approvals, or state transitions by themselves. A live Codex SDK or App Server transport is a

@@ -72,11 +72,13 @@ It does not execute target-repository scripts or load target source code into Re
 ```bash
 repopilot providers list
 repopilot providers list --json
+repopilot providers doctor
 ```
 
 Lists provider adapters, integration status, and supported capabilities. The deterministic fake
 provider is built in for contract and workflow tests. The Codex adapter requires a transport and does
-not make a live AI call from this milestone.
+not make a live AI call from this milestone. `providers doctor` reports configured provider health;
+Codex remains unavailable until a future SDK or App Server transport is explicitly configured.
 
 ## Validate
 

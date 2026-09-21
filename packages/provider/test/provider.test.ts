@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   CodexAgentProvider,
   FakeAgentProvider,
+  inspectProviders,
   listProviderDefinitions,
   providerEventSchema,
+  ProviderRegistry,
   type AgentProvider,
   type CodexTransport,
   type CodexTransportEvent,
@@ -82,6 +84,42 @@ it("publishes deterministic provider discovery metadata", () => {
   ]);
 });
 
+it("registers and resolves providers without allowing ambiguous duplicates", () => {
+  const provider = new FakeAgentProvider();
+  const registry = new ProviderRegistry([provider]);
+
+  expect(registry.get("fake")).toBe(provider);
+  expect(registry.list()).toEqual([provider]);
+  expect(() => registry.register(new FakeAgentProvider())).toThrow("already registered");
+  expect(() => registry.get("missing")).toThrow("not configured");
+});
+
+it("inspects configured and transport-required providers", async () => {
+  const inspections = await inspectProviders(new ProviderRegistry([new FakeAgentProvider()]));
+  const codex = inspections.find((inspection) => inspection.id === "codex");
+  const fake = inspections.find((inspection) => inspection.id === "fake");
+
+  expect(codex?.configured).toBe(false);
+  expect(codex?.health.status).toBe("unavailable");
+  expect(fake?.configured).toBe(true);
+  expect(fake?.health.status).toBe("available");
+});
+
+it("converts a missing Codex terminal result into a normalized failure", async () => {
+  const provider = new CodexAgentProvider(
+    new TestCodexTransport([{ type: "message.delta", delta: "partial" }])
+  );
+  const execution = await provider.start(request);
+  const events = await collect(execution.events);
+
+  expect(events.map((event) => event.type)).toEqual([
+    "thread.started",
+    "turn.started",
+    "message.delta",
+    "run.failed"
+  ]);
+});
+
 async function collect(events: AsyncIterable<ProviderEvent>): Promise<ProviderEvent[]> {
   const collected: ProviderEvent[] = [];
   for await (const event of events) collected.push(event);
@@ -92,6 +130,13 @@ class TestCodexTransport implements CodexTransport {
   private readonly threads = new Set<string>();
   private readonly cancelled = new Set<string>();
   private nextId = 1;
+
+  constructor(
+    private readonly scriptedEvents: CodexTransportEvent[] = [
+      { type: "message.delta", delta: "working" },
+      { type: "result.completed", summary: "done", output: { changed: false } }
+    ]
+  ) {}
 
   healthCheck() {
     return Promise.resolve({
@@ -117,8 +162,7 @@ class TestCodexTransport implements CodexTransport {
       yield { type: "run.cancelled" };
       return;
     }
-    yield { type: "message.delta", delta: "working" };
-    yield { type: "result.completed", summary: "done", output: { changed: false } };
+    for (const event of this.scriptedEvents) yield event;
   }
 
   cancelThread(threadId: string) {

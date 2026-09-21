@@ -14,7 +14,14 @@ import {
   writeRepositoryConfig,
   type PolicyOverride
 } from "@repopilot/policy";
-import { listProviderDefinitions, type ProviderDefinition } from "@repopilot/provider";
+import {
+  FakeAgentProvider,
+  inspectProviders,
+  listProviderDefinitions,
+  ProviderRegistry,
+  type ProviderDefinition,
+  type ProviderInspection
+} from "@repopilot/provider";
 import { WorkflowStore, type RunSnapshot } from "@repopilot/workflow";
 
 export const cliExitCode = {
@@ -55,7 +62,7 @@ Usage:
   repopilot doctor [--repo path] [--json]
   repopilot init [--repo path] [--json]
   repopilot scan [--repo path] [--json]
-  repopilot providers list [--json]
+  repopilot providers <list|doctor> [--json]
   repopilot validate [--repo path] [--json]
   repopilot runs create <objective> [--provider name] [--repo path] [--json]
   repopilot runs list [--repo path] [--json]
@@ -98,7 +105,7 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<CliRe
     if (command === "doctor") return handleDoctorCommand(commandArgs, cwd);
     if (command === "init") return await handlePolicyCommand(["init", ...commandArgs], cwd);
     if (command === "scan") return await handleScanCommand(commandArgs, cwd);
-    if (command === "providers") return handleProvidersCommand(commandArgs);
+    if (command === "providers") return await handleProvidersCommand(commandArgs);
     if (command === "validate") {
       return await handlePolicyCommand(["validate", ...commandArgs], cwd);
     }
@@ -222,7 +229,7 @@ async function handleScanCommand(args: string[], cwd: string): Promise<CliResult
     : textResult(formatAnalysis(analysis));
 }
 
-function handleProvidersCommand(args: string[]): CliResult {
+async function handleProvidersCommand(args: string[]): Promise<CliResult> {
   const subcommand = args[0] ?? "list";
   const { values, positionals } = parseArgs({
     args: args.slice(1),
@@ -231,12 +238,20 @@ function handleProvidersCommand(args: string[]): CliResult {
     options: commonOptions(false)
   });
   if (values.help) return textResult(helpText);
-  if (subcommand !== "list") throw new CliUsageError(`Unknown providers command: ${subcommand}`);
-  requireNoPositionals(positionals, "repopilot providers list [--json]");
-  const providers = listProviderDefinitions();
-  return values.json
-    ? jsonResult(cliExitCode.success, { ok: true, command: "providers list", providers })
-    : textResult(formatProviders(providers));
+  requireNoPositionals(positionals, "repopilot providers <list|doctor> [--json]");
+  if (subcommand === "list") {
+    const providers = listProviderDefinitions();
+    return values.json
+      ? jsonResult(cliExitCode.success, { ok: true, command: "providers list", providers })
+      : textResult(formatProviders(providers));
+  }
+  if (subcommand === "doctor") {
+    const providers = await inspectProviders(new ProviderRegistry([new FakeAgentProvider()]));
+    return values.json
+      ? jsonResult(cliExitCode.success, { ok: true, command: "providers doctor", providers })
+      : textResult(formatProviderHealth(providers));
+  }
+  throw new CliUsageError(`Unknown providers command: ${subcommand}`);
 }
 
 async function handlePolicyCommand(args: string[], cwd: string): Promise<CliResult> {
@@ -520,6 +535,15 @@ function formatProviders(providers: ProviderDefinition[]): string {
     ...providers.map(
       (provider) =>
         `- ${provider.id}: ${provider.displayName} [${provider.integration}] (${provider.capabilities.join(", ")})`
+    )
+  ].join("\n");
+}
+
+function formatProviderHealth(providers: ProviderInspection[]): string {
+  return [
+    "RepoPilot provider health",
+    ...providers.map(
+      (provider) => `- ${provider.id}: ${provider.health.status} (${provider.health.message})`
     )
   ].join("\n");
 }

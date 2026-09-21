@@ -32,7 +32,7 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 - `doctor`
 - `init` as a top-level policy initialization command
 - `scan` with text and JSON output
-- `providers list` for machine-readable provider and capability discovery
+- `providers list` and `providers doctor` for machine-readable discovery and health inspection
 - `validate` as a top-level policy validation command
 - `runs create` and `runs list` for durable local workflow state
 - `status <run-id>` and `resume <run-id>`
@@ -57,6 +57,10 @@ corrupt or out-of-sequence journals. Local journals live under `.repopilot/runs/
 `packages/provider` defines a vendor-neutral `AgentProvider` contract for capability discovery, health
 checks, thread start/resume, cancellation, asynchronous normalized events, and structured results. A
 deterministic fake provider and transport-injected Codex provider pass the same contract suite.
+
+A provider registry rejects duplicate IDs, performs deterministic selection, and converts health-check
+failures into normalized unavailable results. Codex event streams emit exactly one terminal result;
+transport exceptions and incomplete streams become normalized failure events.
 
 The Codex adapter follows the official SDK lifecycle of starting and resuming local threads while
 leaving streamed transport details behind an injected boundary suitable for an SDK or App Server

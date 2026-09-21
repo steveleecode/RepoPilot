@@ -85,6 +85,11 @@ export interface ProviderDefinition {
   capabilities: ProviderCapability[];
 }
 
+export interface ProviderInspection extends ProviderDefinition {
+  configured: boolean;
+  health: ProviderHealth;
+}
+
 const standardCapabilities: ProviderCapability[] = [
   "start",
   "resume",
@@ -109,6 +114,70 @@ export function listProviderDefinitions(): ProviderDefinition[] {
       capabilities: [...standardCapabilities]
     }
   ];
+}
+
+export class ProviderRegistry {
+  private readonly providers = new Map<string, AgentProvider>();
+
+  constructor(providers: AgentProvider[] = []) {
+    for (const provider of providers) this.register(provider);
+  }
+
+  register(provider: AgentProvider): void {
+    if (this.providers.has(provider.id)) {
+      throw new Error(`Provider is already registered: ${provider.id}`);
+    }
+    this.providers.set(provider.id, provider);
+  }
+
+  get(providerId: string): AgentProvider {
+    const provider = this.providers.get(providerId);
+    if (!provider) throw new Error(`Provider is not configured: ${providerId}`);
+    return provider;
+  }
+
+  list(): AgentProvider[] {
+    return [...this.providers.values()].sort((left, right) => left.id.localeCompare(right.id));
+  }
+}
+
+export async function inspectProviders(registry: ProviderRegistry): Promise<ProviderInspection[]> {
+  return Promise.all(
+    listProviderDefinitions().map(async (definition) => {
+      let provider: AgentProvider;
+      try {
+        provider = registry.get(definition.id);
+      } catch {
+        return {
+          ...definition,
+          configured: false,
+          health: {
+            status: "unavailable" as const,
+            message:
+              definition.integration === "transport-required"
+                ? `${definition.displayName} requires a configured transport.`
+                : `${definition.displayName} is not registered.`
+          }
+        };
+      }
+      try {
+        return {
+          ...definition,
+          configured: true,
+          health: providerHealthSchema.parse(await provider.healthCheck())
+        };
+      } catch (error) {
+        return {
+          ...definition,
+          configured: true,
+          health: {
+            status: "unavailable" as const,
+            message: error instanceof Error ? error.message : "Provider health check failed."
+          }
+        };
+      }
+    })
+  );
 }
 
 export interface FakeProviderOptions {
@@ -235,16 +304,18 @@ export class CodexAgentProvider implements AgentProvider {
 
   async start(request: ProviderRunRequest): Promise<ProviderExecution> {
     const parsed = providerRunRequestSchema.parse(request);
-    const { threadId } = await this.transport.startThread({
+    const started = await this.transport.startThread({
       repositoryRoot: parsed.repositoryRoot
     });
+    const threadId = z.string().min(1).parse(started.threadId);
     return { threadId, events: this.events(threadId, parsed, true) };
   }
 
   async resume(threadId: string, request: ProviderRunRequest): Promise<ProviderExecution> {
+    const parsedThreadId = z.string().min(1).parse(threadId);
     const parsed = providerRunRequestSchema.parse(request);
-    await this.transport.resumeThread(threadId);
-    return { threadId, events: this.events(threadId, parsed, false) };
+    await this.transport.resumeThread(parsedThreadId);
+    return { threadId: parsedThreadId, events: this.events(parsedThreadId, parsed, false) };
   }
 
   async cancel(threadId: string): Promise<void> {
@@ -268,23 +339,42 @@ export class CodexAgentProvider implements AgentProvider {
       });
     if (started) yield event({ type: "thread.started" });
     yield event({ type: "turn.started" });
-    for await (const transportEvent of this.transport.runTurn(threadId, request)) {
-      if (transportEvent.type === "message.delta") {
-        yield event(transportEvent);
-      } else if (transportEvent.type === "result.completed") {
-        yield event({
-          type: "result.completed",
-          result: {
-            status: "completed",
-            summary: transportEvent.summary,
-            output: transportEvent.output ?? {}
-          }
-        });
-      } else if (transportEvent.type === "run.failed") {
-        yield event(transportEvent);
-      } else {
-        yield event({ type: "run.cancelled" });
+    let terminal = false;
+    try {
+      for await (const transportEvent of this.transport.runTurn(threadId, request)) {
+        if (transportEvent.type === "message.delta") {
+          yield event(transportEvent);
+          continue;
+        }
+        terminal = true;
+        if (transportEvent.type === "result.completed") {
+          yield event({
+            type: "result.completed",
+            result: {
+              status: "completed",
+              summary: transportEvent.summary,
+              output: transportEvent.output ?? {}
+            }
+          });
+        } else if (transportEvent.type === "run.failed") {
+          yield event(transportEvent);
+        } else {
+          yield event({ type: "run.cancelled" });
+        }
+        break;
       }
+    } catch (error) {
+      terminal = true;
+      yield event({
+        type: "run.failed",
+        message: error instanceof Error ? error.message : "Codex transport failed."
+      });
+    }
+    if (!terminal) {
+      yield event({
+        type: "run.failed",
+        message: "Codex transport ended without a terminal result."
+      });
     }
   }
 }

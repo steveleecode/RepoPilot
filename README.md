@@ -58,6 +58,7 @@ pnpm repopilot doctor
 pnpm repopilot scan --repo .
 pnpm repopilot scan --repo . --json
 pnpm repopilot providers list
+pnpm repopilot providers doctor
 pnpm repopilot init --repo ../another-repository
 pnpm repopilot validate --repo ../another-repository
 pnpm repopilot runs create "Add parser coverage" --provider codex

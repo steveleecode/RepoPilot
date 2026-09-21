@@ -136,6 +136,21 @@ describe("RepoPilot CLI", () => {
     expect(output.providers[0]?.capabilities).toContain("event_streaming");
   });
 
+  it("reports provider configuration and health without making external calls", async () => {
+    const result = await runCli(["node", "repopilot", "providers", "doctor", "--json"]);
+    const output = JSON.parse(result.output) as {
+      providers: Array<{ id: string; configured: boolean; health: { status: string } }>;
+    };
+    const codex = output.providers.find((provider) => provider.id === "codex");
+    const fake = output.providers.find((provider) => provider.id === "fake");
+
+    expect(result.exitCode).toBe(cliExitCode.success);
+    expect(codex?.configured).toBe(false);
+    expect(codex?.health.status).toBe("unavailable");
+    expect(fake?.configured).toBe(true);
+    expect(fake?.health.status).toBe("available");
+  });
+
   it("rejects invalid worker counts without an uncaught exception", async () => {
     const result = await runCli([
       "node",
