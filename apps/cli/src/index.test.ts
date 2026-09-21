@@ -120,6 +120,22 @@ describe("RepoPilot CLI", () => {
     expect(result.output).toContain("Unknown option");
   });
 
+  it("discovers provider adapters and capabilities", async () => {
+    const result = await runCli(["node", "repopilot", "providers", "list", "--json"]);
+    const output = JSON.parse(result.output) as {
+      providers: Array<{ id: string; integration: string; capabilities: string[] }>;
+    };
+
+    expect(result.exitCode).toBe(cliExitCode.success);
+    expect(output.providers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "codex", integration: "transport-required" }),
+        expect.objectContaining({ id: "fake", integration: "built-in" })
+      ])
+    );
+    expect(output.providers[0]?.capabilities).toContain("event_streaming");
+  });
+
   it("rejects invalid worker counts without an uncaught exception", async () => {
     const result = await runCli([
       "node",

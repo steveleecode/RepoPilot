@@ -9,6 +9,7 @@
 - `packages/validator` owns pre-write validation pipeline contracts and validators.
 - `packages/instruction-linter` owns deterministic checks for repository agent instructions.
 - `packages/policy` owns versioned execution-policy configuration, presets, resolution order, authorization checks, task parallel-safety, and audit records.
+- `packages/provider` owns vendor-neutral agent-provider contracts, normalized events, capability discovery, health checks, and provider adapters.
 - `packages/workflow` owns durable run state, event journals, state transitions, tasks, artifacts, and approvals.
 - `packages/shared` holds only cross-package schemas, results, errors, filesystem, and logging interfaces.
 - `packages/ui` holds reusable accessible UI primitives.
@@ -22,6 +23,10 @@ Execution policy is resolved from built-in safe defaults, presets, repository co
 Workflow state is persisted as versioned append-only JSONL events under `.repopilot/runs/`. Snapshots
 are reconstructed from the journal so interrupted processes can inspect and resume work without asking
 an AI provider to recreate orchestration state.
+
+Provider adapters expose the same start, resume, cancel, health, capability, event-streaming, and
+structured-result contract. The Codex adapter accepts an injected transport so the deterministic core
+does not authenticate, make network calls, or grant a provider authority over workflow or policy state.
 
 ## Deterministic Analysis Before AI
 

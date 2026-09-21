@@ -14,6 +14,7 @@ import {
   writeRepositoryConfig,
   type PolicyOverride
 } from "@repopilot/policy";
+import { listProviderDefinitions, type ProviderDefinition } from "@repopilot/provider";
 import { WorkflowStore, type RunSnapshot } from "@repopilot/workflow";
 
 export const cliExitCode = {
@@ -54,6 +55,7 @@ Usage:
   repopilot doctor [--repo path] [--json]
   repopilot init [--repo path] [--json]
   repopilot scan [--repo path] [--json]
+  repopilot providers list [--json]
   repopilot validate [--repo path] [--json]
   repopilot runs create <objective> [--provider name] [--repo path] [--json]
   repopilot runs list [--repo path] [--json]
@@ -71,6 +73,7 @@ Commands:
   doctor    Inspect the local RepoPilot environment.
   init      Initialize repository policy using the balanced preset.
   scan      Analyze repository metadata and print evidence-backed facts.
+  providers Discover available agent-provider adapters and capabilities.
   validate  Validate the repository policy configuration.
   runs      Create and list durable workflow runs.
   status    Show a reconstructed workflow run snapshot.
@@ -95,6 +98,7 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<CliRe
     if (command === "doctor") return handleDoctorCommand(commandArgs, cwd);
     if (command === "init") return await handlePolicyCommand(["init", ...commandArgs], cwd);
     if (command === "scan") return await handleScanCommand(commandArgs, cwd);
+    if (command === "providers") return handleProvidersCommand(commandArgs);
     if (command === "validate") {
       return await handlePolicyCommand(["validate", ...commandArgs], cwd);
     }
@@ -216,6 +220,23 @@ async function handleScanCommand(args: string[], cwd: string): Promise<CliResult
         analysis
       })
     : textResult(formatAnalysis(analysis));
+}
+
+function handleProvidersCommand(args: string[]): CliResult {
+  const subcommand = args[0] ?? "list";
+  const { values, positionals } = parseArgs({
+    args: args.slice(1),
+    allowPositionals: true,
+    strict: true,
+    options: commonOptions(false)
+  });
+  if (values.help) return textResult(helpText);
+  if (subcommand !== "list") throw new CliUsageError(`Unknown providers command: ${subcommand}`);
+  requireNoPositionals(positionals, "repopilot providers list [--json]");
+  const providers = listProviderDefinitions();
+  return values.json
+    ? jsonResult(cliExitCode.success, { ok: true, command: "providers list", providers })
+    : textResult(formatProviders(providers));
 }
 
 async function handlePolicyCommand(args: string[], cwd: string): Promise<CliResult> {
@@ -490,6 +511,16 @@ function formatAnalysis(analysis: RepositoryAnalysis): string {
     `- Agent instruction files: ${analysis.agentInstructions.length}`,
     `- Evidence records: ${evidenceCount}`,
     `- Warnings: ${analysis.warnings.length}`
+  ].join("\n");
+}
+
+function formatProviders(providers: ProviderDefinition[]): string {
+  return [
+    "RepoPilot providers",
+    ...providers.map(
+      (provider) =>
+        `- ${provider.id}: ${provider.displayName} [${provider.integration}] (${provider.capabilities.join(", ")})`
+    )
   ].join("\n");
 }
 

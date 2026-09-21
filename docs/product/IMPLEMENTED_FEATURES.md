@@ -32,6 +32,7 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 - `doctor`
 - `init` as a top-level policy initialization command
 - `scan` with text and JSON output
+- `providers list` for machine-readable provider and capability discovery
 - `validate` as a top-level policy validation command
 - `runs create` and `runs list` for durable local workflow state
 - `status <run-id>` and `resume <run-id>`
@@ -50,6 +51,16 @@ unknown flags are rejected, and command failures use stable categorized exit cod
 artifacts, approvals, provider thread links, and notes. It reconstructs snapshots deterministically,
 enforces run and task status transitions, supports resuming interrupted or failed runs, and rejects
 corrupt or out-of-sequence journals. Local journals live under `.repopilot/runs/`.
+
+## Agent Providers
+
+`packages/provider` defines a vendor-neutral `AgentProvider` contract for capability discovery, health
+checks, thread start/resume, cancellation, asynchronous normalized events, and structured results. A
+deterministic fake provider and transport-injected Codex provider pass the same contract suite.
+
+The Codex adapter follows the official SDK lifecycle of starting and resuming local threads while
+leaving streamed transport details behind an injected boundary suitable for an SDK or App Server
+implementation. This milestone does not create credentials, authenticate, or make live AI calls.
 
 `doctor` inspects the RepoPilot development environment, validates the supported Node major-version
 range, and reports pnpm, Git, the current directory, and whether the directory is a Git repository.
@@ -132,6 +143,7 @@ RepoPilot still does not implement:
 - Additional language ecosystems beyond the currently supported manifest and tool families.
 - Real write application of generated files.
 - Agent provider execution.
+- Live Codex SDK/App Server transport and authentication.
 - Git worktree orchestration.
 - Actual automatic commit, push, or pull-request execution.
 - GitHub authentication.

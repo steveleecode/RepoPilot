@@ -67,6 +67,17 @@ workflows, and nested agent instruction files. Scan skips dependency and build o
 symbolic links, caps traversal and metadata-file sizes, and reports limit or parse failures as warnings.
 It does not execute target-repository scripts or load target source code into RepoPilot.
 
+## Providers
+
+```bash
+repopilot providers list
+repopilot providers list --json
+```
+
+Lists provider adapters, integration status, and supported capabilities. The deterministic fake
+provider is built in for contract and workflow tests. The Codex adapter requires a transport and does
+not make a live AI call from this milestone.
+
 ## Validate
 
 ```bash
