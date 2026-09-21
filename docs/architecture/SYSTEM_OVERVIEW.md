@@ -10,6 +10,7 @@
 - `packages/instruction-linter` owns deterministic checks for repository agent instructions.
 - `packages/policy` owns versioned execution-policy configuration, presets, resolution order, authorization checks, task parallel-safety, and audit records.
 - `packages/provider` owns vendor-neutral agent-provider contracts, normalized events, capability discovery, health checks, and provider adapters.
+- `packages/orchestrator` owns deterministic run coordination across analysis, provider execution, validation, and persisted workflow gates.
 - `packages/workflow` owns durable run state, event journals, state transitions, tasks, artifacts, and approvals.
 - `packages/shared` holds only cross-package schemas, results, errors, filesystem, and logging interfaces.
 - `packages/ui` holds reusable accessible UI primitives.
@@ -27,6 +28,11 @@ an AI provider to recreate orchestration state.
 Provider adapters expose the same start, resume, cancel, health, capability, event-streaming, and
 structured-result contract. The Codex adapter accepts an injected transport so the deterministic core
 does not authenticate, make network calls, or grant a provider authority over workflow or policy state.
+
+The workflow engine advances persisted runs through discovery, analysis, planning, authorization,
+execution, validation, and review. Provider results are recorded before validation, allowing an
+interrupted validation attempt to resume without rerunning the provider. Direct execution-to-complete
+and validation-to-complete transitions are rejected by the workflow store.
 
 ## Deterministic Analysis Before AI
 

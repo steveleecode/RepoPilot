@@ -1,11 +1,8 @@
 {
-  "name": "@repopilot/cli",
+  "name": "@repopilot/orchestrator",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "bin": {
-    "repopilot": "./dist/index.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,13 +11,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "node dist/index.js --help",
     "lint": "eslint .",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@repopilot/analyzer": "workspace:*",
-    "@repopilot/orchestrator": "workspace:*",
     "@repopilot/policy": "workspace:*",
     "@repopilot/provider": "workspace:*",
     "@repopilot/workflow": "workspace:*"

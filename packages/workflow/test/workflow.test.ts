@@ -57,6 +57,7 @@ describe("WorkflowStore", () => {
     await store.linkProviderThread(run.id, "codex", "thread-123");
     await store.transitionRun(run.id, "running");
     await store.transitionRun(run.id, "validating");
+    await store.transitionRun(run.id, "reviewing");
     const completed = await store.transitionRun(run.id, "completed");
 
     expect(completed.status).toBe("completed");
@@ -70,7 +71,7 @@ describe("WorkflowStore", () => {
     expect(completed.approvals).toEqual([
       expect.objectContaining({ id: approval.id, status: "approved" })
     ]);
-    expect(completed.lastSequence).toBe(12);
+    expect(completed.lastSequence).toBe(13);
   });
 
   it("rejects invalid transitions and resumes interrupted runs through planning", async () => {
@@ -85,6 +86,22 @@ describe("WorkflowStore", () => {
     const resumed = await store.resumeRun(run.id);
 
     expect(resumed.status).toBe("planning");
+  });
+
+  it("does not allow execution to skip validation and review gates", async () => {
+    const root = await fixture();
+    const store = deterministicStore(root);
+    const run = await store.createRun({ objective: "Enforce workflow gates" });
+
+    await store.transitionRun(run.id, "planning");
+    await store.transitionRun(run.id, "running");
+    await expect(store.transitionRun(run.id, "completed")).rejects.toThrow(
+      "Invalid run status transition"
+    );
+    await store.transitionRun(run.id, "validating");
+    await expect(store.transitionRun(run.id, "completed")).rejects.toThrow(
+      "Invalid run status transition"
+    );
   });
 
   it("detects corrupted journals instead of silently discarding events", async () => {

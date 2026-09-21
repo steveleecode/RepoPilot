@@ -161,6 +161,26 @@ RepoPilot remains the workflow and policy authority. Provider events cannot auth
 actions, approvals, or state transitions by themselves. A live Codex SDK or App Server transport is a
 future integration layer behind this package's `CodexTransport` boundary.
 
+## `packages/orchestrator`
+
+Deterministic workflow engine.
+
+Responsibilities:
+
+- Advance persisted runs through discovery, analysis, planning, authorization, execution, validation,
+  review, and completion.
+- Select and health-check registered providers.
+- Link provider thread IDs to durable workflow runs.
+- Normalize provider completion, failure, and cancellation into run and task transitions.
+- Record discovery, provider-result, validation, and failure artifacts.
+- Resume failed or interrupted work from persisted provider results without repeating completed work.
+- Bound provider event consumption and prevent concurrent execution of the same run in one process.
+- Produce deterministic dependency-ordered task batches, using policy write-scope checks and worker
+  limits to decide which tasks may run together.
+
+This milestone executes read-only planning tasks only. It does not run target-repository commands or
+apply provider output; sandboxed execution and proposal application remain separate later phases.
+
 ## `packages/ui`
 
 Reusable typed UI primitives.

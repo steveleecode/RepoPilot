@@ -33,6 +33,10 @@ monitoring disabled, plus time and output limits.
 
 Generated content is represented as proposed files or edits. Validators operate on proposed changes before write operations whenever possible.
 
+The workflow journal enforces validation and review gates: a running workflow cannot transition
+directly to completed, and validation cannot transition directly to completed. The Phase 5 engine is
+limited to read-only planning requests and does not execute target-repository commands or apply output.
+
 ## Validation Commands
 
 The root validation gate is:

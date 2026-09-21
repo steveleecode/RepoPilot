@@ -47,6 +47,9 @@ importers:
       '@repopilot/analyzer':
         specifier: workspace:*
         version: link:../../packages/analyzer
+      '@repopilot/orchestrator':
+        specifier: workspace:*
+        version: link:../../packages/orchestrator
       '@repopilot/policy':
         specifier: workspace:*
         version: link:../../packages/policy
@@ -114,6 +117,21 @@ importers:
       '@repopilot/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/orchestrator:
+    dependencies:
+      '@repopilot/analyzer':
+        specifier: workspace:*
+        version: link:../analyzer
+      '@repopilot/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@repopilot/provider':
+        specifier: workspace:*
+        version: link:../provider
+      '@repopilot/workflow':
+        specifier: workspace:*
+        version: link:../workflow
 
   packages/policy:
     dependencies:

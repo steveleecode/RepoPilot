@@ -168,9 +168,9 @@ pnpm repopilot policy set pushes.enabled false
 pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 ```
 
-This milestone does not execute agent work. The command resolves the policy for a planned run and displays the effective configuration. One-run flags do not edit `.repopilot/config.yaml`. Use
-`--non-interactive` to declare automation intent; it is included in JSON output and will be consumed by
-the future workflow runner.
+Without an objective, the command resolves the policy for a planned run and displays the effective
+configuration. One-run flags do not edit `.repopilot/config.yaml`. Use `--non-interactive` to declare
+automation intent; it is included in JSON output.
 
 Supported one-run flags:
 
@@ -178,3 +178,15 @@ Supported one-run flags:
 - `--max-workers <n>`: sets worker count for this invocation.
 - `--auto-commit`: enables after-feature automatic commits for this invocation.
 - `--no-push`: disables automatic pushes for this invocation.
+
+## Read-only Provider Workflow
+
+```bash
+repopilot run "Plan parser coverage" --provider fake
+repopilot run "Plan parser coverage" --provider fake --json
+```
+
+Creates a durable run and advances it through repository discovery, analysis, planning, provider
+authorization, read-only execution, validation, review, and completion. The built-in fake provider is
+the only executable provider in this milestone. Codex remains discoverable but requires a future
+transport configuration. The workflow does not execute target-repository scripts or apply changes.

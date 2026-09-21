@@ -4,6 +4,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { analyzeRepository, type RepositoryAnalysis } from "@repopilot/analyzer";
+import { WorkflowEngine } from "@repopilot/orchestrator";
 import {
   defaultConfig,
   formatResolvedPolicy,
@@ -74,6 +75,7 @@ Usage:
   repopilot policy set <path> <value> [--repo path] [--json]
   repopilot run [--repo path] [--json] [--non-interactive]
                 [--parallel] [--max-workers n] [--auto-commit] [--no-push]
+  repopilot run <objective> --provider fake [--repo path] [--json]
 
 Commands:
   version   Print the RepoPilot CLI version.
@@ -86,7 +88,7 @@ Commands:
   status    Show a reconstructed workflow run snapshot.
   resume    Move an interrupted or failed run back to planning.
   policy    Show, validate, initialize, or update execution policy.
-  run       Preview the resolved policy for a future RepoPilot run.
+  run       Preview policy or execute a provider-backed read-only workflow.
 
 Global command options:
   --repo <path>       Target repository. Defaults to the current directory.
@@ -359,18 +361,48 @@ async function handleRunCommand(args: string[], cwd: string): Promise<CliResult>
       "max-workers": { type: "string" },
       "auto-commit": { type: "boolean" },
       "no-push": { type: "boolean" },
-      "non-interactive": { type: "boolean" }
+      "non-interactive": { type: "boolean" },
+      provider: { type: "string" }
     }
   });
-  requireNoPositionals(
-    positionals,
-    "repopilot run [--repo path] [--json] [--parallel] [--max-workers n]"
-  );
   if (values.help) return textResult(helpText);
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
   const repositoryConfig = await loadRepositoryConfig(repositoryRoot);
   const cliOverrides = parseRunOverrides(values);
   const resolved = resolvePolicy({ repositoryConfig, cliOverrides });
+  if (positionals.length > 0) {
+    const providerId = stringOption(values.provider, "--provider");
+    if (!providerId) {
+      throw new CliUsageError(
+        "Provider-backed runs require --provider. Currently available for execution: fake."
+      );
+    }
+    const objective = positionals.join(" ").trim();
+    if (!objective) throw new CliUsageError("Run objective is required.");
+    const store = new WorkflowStore(repositoryRoot);
+    const created = await store.createRun({ objective, provider: providerId });
+    const outcome = await new WorkflowEngine({
+      store,
+      providers: new ProviderRegistry([new FakeAgentProvider()]),
+      policy: resolved.execution
+    }).run(created.id);
+    const exitCode =
+      outcome.run.status === "completed" ? cliExitCode.success : cliExitCode.workflowError;
+    return values.json
+      ? jsonResult(exitCode, {
+          ok: exitCode === cliExitCode.success,
+          command: "run",
+          repositoryRoot,
+          executionImplemented: true,
+          providerEvents: outcome.providerEvents,
+          run: outcome.run
+        })
+      : textResult(
+          `RepoPilot workflow\n${formatRun(outcome.run)}\nProvider events: ${outcome.providerEvents}`,
+          exitCode
+        );
+  }
+  if (values.provider) throw new CliUsageError("--provider requires a run objective.");
   const externalWriteNotice =
     resolved.execution.pushes.enabled || resolved.execution.pull_requests.enabled
       ? "\nExternal write actions are enabled by policy and must be authorized before execution."
@@ -386,7 +418,7 @@ async function handleRunCommand(args: string[], cwd: string): Promise<CliResult>
     });
   }
   return textResult(
-    `Resolved RepoPilot policy for this run\n${formatResolvedPolicy(resolved)}Run execution is not implemented in this milestone.${externalWriteNotice}`
+    `Resolved RepoPilot policy for this run\n${formatResolvedPolicy(resolved)}No objective supplied; no workflow was started.${externalWriteNotice}`
   );
 }
 

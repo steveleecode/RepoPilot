@@ -85,7 +85,28 @@ describe("RepoPilot CLI", () => {
     expect(result.exitCode).toBe(0);
     expect(result.output).toContain("Resolved RepoPilot policy for this run");
     expect(result.output).toContain("max_workers: 2");
-    expect(result.output).toContain("Run execution is not implemented");
+    expect(result.output).toContain("No objective supplied; no workflow was started.");
+  });
+
+  it("executes a durable read-only workflow through the fake provider", async () => {
+    const cwd = await fixture();
+    await writeFile(path.join(cwd, "package.json"), "{}");
+
+    const result = await runCli(
+      ["node", "repopilot", "run", "Plan parser coverage", "--provider", "fake", "--json"],
+      cwd
+    );
+    const output = JSON.parse(result.output) as {
+      executionImplemented: boolean;
+      providerEvents: number;
+      run: { status: string; tasks: Array<{ status: string }> };
+    };
+
+    expect(result.exitCode).toBe(cliExitCode.success);
+    expect(output.executionImplemented).toBe(true);
+    expect(output.providerEvents).toBeGreaterThan(0);
+    expect(output.run.status).toBe("completed");
+    expect(output.run.tasks[0]?.status).toBe("completed");
   });
 
   it("scans an explicitly selected repository and emits structured evidence", async () => {

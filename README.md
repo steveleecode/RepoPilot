@@ -15,6 +15,7 @@ Implemented foundations:
 - Versioned execution policy in `.repopilot/config.yaml`, with presets, CLI commands, dashboard display, enforcement helpers, task parallel-safety checks, and audit records.
 - Durable local workflow runs backed by versioned append-only event journals.
 - Vendor-neutral agent-provider contracts with deterministic fake and transport-injected Codex adapters.
+- Deterministic workflow orchestration with persisted discovery, planning, authorization, execution, validation, and review gates.
 - Next.js dashboard shell with repository placeholders, validation timeline, command palette foundation, and Agent Policy settings.
 - CLI commands for doctor checks and policy inspection/update.
 - Unit, build, lint, typecheck, CI, and Playwright smoke-test coverage.
@@ -59,6 +60,7 @@ pnpm repopilot scan --repo .
 pnpm repopilot scan --repo . --json
 pnpm repopilot providers list
 pnpm repopilot providers doctor
+pnpm repopilot run "Plan parser coverage" --provider fake
 pnpm repopilot init --repo ../another-repository
 pnpm repopilot validate --repo ../another-repository
 pnpm repopilot runs create "Add parser coverage" --provider codex
@@ -82,6 +84,7 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 - `packages/instruction-linter`: deterministic linter for agent instruction files.
 - `packages/policy`: execution policy presets, schema validation, deterministic authorization, task parallel-safety, and audit records.
 - `packages/provider`: provider contracts, normalized events, fake provider, and Codex adapter.
+- `packages/orchestrator`: recoverable deterministic workflow engine and gate coordination.
 - `packages/workflow`: persistent run, task, event, artifact, and approval state.
 - `packages/shared`: shared schemas, result utilities, errors, filesystem and logging interfaces.
 - `packages/ui`: accessible UI primitives used by the dashboard.

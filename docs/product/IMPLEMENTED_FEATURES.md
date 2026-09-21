@@ -41,6 +41,7 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 - `policy init`
 - `policy set <path> <value>`
 - `run` with one-run policy overrides
+- `run <objective> --provider fake` for a persisted read-only provider workflow
 
 Repository-oriented commands accept `--repo <path>`. Data-producing commands support JSON output,
 unknown flags are rejected, and command failures use stable categorized exit codes.
@@ -51,6 +52,9 @@ unknown flags are rejected, and command failures use stable categorized exit cod
 artifacts, approvals, provider thread links, and notes. It reconstructs snapshots deterministically,
 enforces run and task status transitions, supports resuming interrupted or failed runs, and rejects
 corrupt or out-of-sequence journals. Local journals live under `.repopilot/runs/`.
+
+Run transitions include explicit discovery, analysis, authorization, validation, and review gates.
+The journal rejects direct `running` or `validating` transitions to `completed`.
 
 ## Agent Providers
 
@@ -65,6 +69,18 @@ transport exceptions and incomplete streams become normalized failure events.
 The Codex adapter follows the official SDK lifecycle of starting and resuming local threads while
 leaving streamed transport details behind an injected boundary suitable for an SDK or App Server
 implementation. This milestone does not create credentials, authenticate, or make live AI calls.
+
+## Workflow Engine
+
+`packages/orchestrator` coordinates deterministic repository discovery, task creation, provider health
+and capability authorization, read-only provider execution, structured-result persistence, validation,
+review, and completion. Provider failures and cancellations become durable run/task states. Failed or
+interrupted validation can resume from its recorded provider result without repeating provider work.
+
+The engine bounds provider event consumption and records failure reports according to execution policy.
+It also produces stable dependency-ordered task batches and uses policy scope-overlap rules to keep
+unsafe work out of the same batch. It does not execute repository scripts, apply generated changes, or
+perform Git mutations.
 
 `doctor` inspects the RepoPilot development environment, validates the supported Node major-version
 range, and reports pnpm, Git, the current directory, and whether the directory is a Git repository.
@@ -146,7 +162,7 @@ RepoPilot still does not implement:
 
 - Additional language ecosystems beyond the currently supported manifest and tool families.
 - Real write application of generated files.
-- Agent provider execution.
+- Live agent provider execution.
 - Live Codex SDK/App Server transport and authentication.
 - Git worktree orchestration.
 - Actual automatic commit, push, or pull-request execution.

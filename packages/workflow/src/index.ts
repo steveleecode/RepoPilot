@@ -5,10 +5,14 @@ import { z } from "zod";
 
 export const runStatusSchema = z.enum([
   "created",
+  "discovering",
+  "analyzing",
   "planning",
+  "authorizing",
   "awaiting_approval",
   "running",
   "validating",
+  "reviewing",
   "completed",
   "failed",
   "cancelled",
@@ -43,6 +47,7 @@ export const workflowArtifactSchema = z.object({
   kind: z.enum(["proposal", "diff", "report", "log"]),
   path: z.string().min(1).optional(),
   summary: z.string().min(1),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.iso.datetime()
 });
 
@@ -163,11 +168,15 @@ export interface CreateTaskInput {
 }
 
 const runTransitions: Record<RunStatus, RunStatus[]> = {
-  created: ["planning", "cancelled", "interrupted"],
-  planning: ["awaiting_approval", "running", "failed", "cancelled", "interrupted"],
-  awaiting_approval: ["running", "cancelled", "interrupted"],
-  running: ["awaiting_approval", "validating", "completed", "failed", "cancelled", "interrupted"],
-  validating: ["running", "completed", "failed", "cancelled", "interrupted"],
+  created: ["discovering", "planning", "cancelled", "interrupted"],
+  discovering: ["analyzing", "failed", "cancelled", "interrupted"],
+  analyzing: ["planning", "failed", "cancelled", "interrupted"],
+  planning: ["authorizing", "awaiting_approval", "running", "failed", "cancelled", "interrupted"],
+  authorizing: ["awaiting_approval", "running", "failed", "cancelled", "interrupted"],
+  awaiting_approval: ["authorizing", "running", "failed", "cancelled", "interrupted"],
+  running: ["awaiting_approval", "validating", "failed", "cancelled", "interrupted"],
+  validating: ["running", "reviewing", "failed", "cancelled", "interrupted"],
+  reviewing: ["running", "completed", "failed", "cancelled", "interrupted"],
   completed: [],
   failed: ["planning", "running", "cancelled"],
   cancelled: [],
@@ -175,9 +184,9 @@ const runTransitions: Record<RunStatus, RunStatus[]> = {
 };
 
 const taskTransitions: Record<TaskStatus, TaskStatus[]> = {
-  pending: ["running", "blocked", "cancelled"],
+  pending: ["running", "blocked", "failed", "cancelled"],
   running: ["blocked", "completed", "failed", "cancelled"],
-  blocked: ["pending", "running", "cancelled"],
+  blocked: ["pending", "running", "failed", "cancelled"],
   completed: [],
   failed: ["pending", "running", "cancelled"],
   cancelled: []
