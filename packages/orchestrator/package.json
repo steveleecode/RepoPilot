@@ -18,6 +18,7 @@
     "@repopilot/analyzer": "workspace:*",
     "@repopilot/policy": "workspace:*",
     "@repopilot/provider": "workspace:*",
-    "@repopilot/workflow": "workspace:*"
+    "@repopilot/workflow": "workspace:*",
+    "zod": "^4.0.14"
   }
 }

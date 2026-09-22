@@ -12,7 +12,7 @@ RepoPilot currently follows these boundaries:
 - Do not collect environment variables.
 - Do not print secrets.
 - Do not add telemetry.
-- Do not make external AI calls.
+- Do not make cloud AI calls. Local Ollama calls require explicit configuration.
 - Do not authenticate with GitHub.
 - Do not merge pull requests.
 

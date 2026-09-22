@@ -68,7 +68,12 @@ transport exceptions and incomplete streams become normalized failure events.
 
 The Codex adapter follows the official SDK lifecycle of starting and resuming local threads while
 leaving streamed transport details behind an injected boundary suitable for an SDK or App Server
-implementation. This milestone does not create credentials, authenticate, or make live AI calls.
+implementation. The Codex adapter does not create credentials or authenticate on its own.
+
+Ollama is the first configured live provider. `.repopilot/models.json` records a versioned model name,
+loopback endpoint, timeout, and response limit. The provider checks model availability, requests a JSON
+plan through `/api/chat`, and normalizes failures and cancellation. Fake, Ollama, and injected Codex
+results pass through the same planning schema.
 
 ## Workflow Engine
 
@@ -173,14 +178,14 @@ RepoPilot still does not implement:
 
 - Additional language ecosystems beyond the currently supported manifest and tool families.
 - Real write application of generated files.
-- Live agent provider execution.
+- Directly configured Codex SDK or App Server transport in the CLI.
 - Live Codex SDK/App Server transport and authentication.
 - OS-level container or remote execution sandboxing.
 - Workflow/CLI execution of target-repository commands.
 - Git worktree orchestration.
 - Actual automatic commit, push, or pull-request execution.
 - GitHub authentication.
-- External AI calls.
+- Cloud AI calls.
 - Telemetry.
 - Hosted execution.
 - Pull-request merging.

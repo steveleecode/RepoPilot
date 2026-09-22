@@ -29,8 +29,8 @@ Responsibilities:
 - Display one-run policy override previews.
 - Execute durable read-only workflows through the deterministic fake provider.
 
-The CLI does not yet apply generated files, invoke live AI providers, execute target-repository
-commands, commit, push, or open pull requests.
+The CLI can plan through a configured local Ollama model. It does not yet apply generated files,
+execute target-repository commands, commit, push, or open pull requests.
 
 ## `packages/shared`
 
@@ -174,11 +174,13 @@ Responsibilities:
 - Normalized asynchronous provider events and structured results.
 - A deterministic fake provider for workflow and contract tests.
 - A transport-injected Codex adapter with no built-in authentication or external calls.
+- A configurable local Ollama adapter with bounded HTTP responses and loopback-only endpoints.
 - Terminal-event enforcement and normalization of transport failures.
 
 RepoPilot remains the workflow and policy authority. Provider events cannot authorize writes, Git
 actions, approvals, or state transitions by themselves. A live Codex SDK or App Server transport is a
-future integration layer behind this package's `CodexTransport` boundary.
+future integration layer behind this package's `CodexTransport` boundary. Ollama uses the same
+provider contract and returns an untrusted plan for orchestrator validation.
 
 ## `packages/orchestrator`
 

@@ -46,7 +46,7 @@ milestone therefore uses objectives and evidence-backed metadata only.
 
 - Hosted GitHub App behavior.
 - Pull request creation.
-- External AI calls.
+- Cloud AI calls during the local-first milestone.
 - Telemetry.
 - Repository script execution during analysis.
 - Production deployment.

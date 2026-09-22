@@ -109,6 +109,105 @@ describe("RepoPilot CLI", () => {
     expect(output.run.tasks[0]?.status).toBe("completed");
   });
 
+  it("configures Ollama and persists a validated plan through the CLI", async () => {
+    const cwd = await fixture();
+    const configured = await runCli(
+      ["node", "repopilot", "providers", "configure", "ollama", "--model", "local-coder"],
+      cwd
+    );
+    expect(configured.exitCode).toBe(0);
+    const fetcher: typeof fetch = (input) =>
+      Promise.resolve(
+        (typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url
+        ).endsWith("/api/tags")
+          ? Response.json({ models: [{ name: "local-coder" }] })
+          : Response.json({
+              message: {
+                content: JSON.stringify({
+                  summary: "Inspect parser tests.",
+                  tasks: [
+                    {
+                      id: "inspect",
+                      objective: "Inspect tests",
+                      dependencies: [],
+                      expectedScopes: ["tests"],
+                      readSet: [],
+                      writeSet: [],
+                      validationCommandIds: [],
+                      completionCriteria: ["Review plan"]
+                    }
+                  ],
+                  risks: [],
+                  questions: []
+                })
+              }
+            })
+      );
+    const result = await runCli(
+      ["node", "repopilot", "run", "Plan tests", "--provider", "ollama", "--json"],
+      cwd,
+      { fetcher }
+    );
+    const output = JSON.parse(result.output) as {
+      run: { status: string; artifacts: Array<{ metadata?: { type?: string } }> };
+    };
+    expect(result.exitCode).toBe(0);
+    expect(output.run.status).toBe("completed");
+    expect(
+      output.run.artifacts.some((artifact) => artifact.metadata?.type === "planning-intent")
+    ).toBe(true);
+  });
+
+  it("accepts an injected Codex transport through the same planning workflow", async () => {
+    const cwd = await fixture();
+    const result = await runCli(
+      ["node", "repopilot", "run", "Plan tests", "--provider", "codex", "--json"],
+      cwd,
+      {
+        codexTransport: {
+          healthCheck: () => Promise.resolve({ status: "available", message: "ready" }),
+          startThread: () => Promise.resolve({ threadId: "codex-test-thread" }),
+          resumeThread: () => Promise.resolve(),
+          cancelThread: () => Promise.resolve(),
+          async *runTurn() {
+            await Promise.resolve();
+            yield {
+              type: "result.completed" as const,
+              summary: "Plan ready",
+              output: {
+                plan: {
+                  summary: "Inspect tests",
+                  tasks: [
+                    {
+                      id: "inspect",
+                      objective: "Inspect tests",
+                      dependencies: [],
+                      expectedScopes: ["tests"],
+                      readSet: [],
+                      writeSet: [],
+                      validationCommandIds: [],
+                      completionCriteria: ["Review plan"]
+                    }
+                  ],
+                  risks: [],
+                  questions: []
+                }
+              }
+            };
+          }
+        }
+      }
+    );
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.output)).toMatchObject({
+      run: { provider: "codex", status: "completed" }
+    });
+  });
+
   it("scans an explicitly selected repository and emits structured evidence", async () => {
     const cwd = await fixture();
     const repository = path.join(cwd, "target");

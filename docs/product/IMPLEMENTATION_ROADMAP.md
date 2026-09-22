@@ -23,7 +23,7 @@ process, approve an action, change workflow state, or perform a Git operation.
 
 ## Revised Remaining Phases
 
-### Phase 7: Local Model Planning Bridge
+### Phase 7: Local Model Planning Bridge (Implemented)
 
 Make Ollama the first live provider and support one safe, read-only, schema-validated planning turn.
 Extend the existing `packages/provider` abstraction rather than adding a second model abstraction.
@@ -187,6 +187,8 @@ Scope:
   uninstall path.
 - Add OpenAI-compatible local endpoints, llama.cpp, and MLX behind the existing provider contract only
   after Ollama contract parity is stable.
+- Connect the existing Codex adapter to an official SDK or App Server transport with a read-only
+  planning sandbox, explicit authentication, and the same plan validation contract.
 - Add explicit network-egress policy before supporting LAN or cloud endpoints.
 - Add compatibility fixtures, provider conformance tests, performance budgets, and failure injection.
 - Document model sizing and context guidance for Apple Silicon without hard-coding one model family.

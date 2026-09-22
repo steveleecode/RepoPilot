@@ -112,6 +112,12 @@ export function listProviderDefinitions(): ProviderDefinition[] {
       displayName: "Deterministic fake provider",
       integration: "built-in",
       capabilities: [...standardCapabilities]
+    },
+    {
+      id: "ollama",
+      displayName: "Local Ollama",
+      integration: "transport-required",
+      capabilities: [...standardCapabilities]
     }
   ];
 }
@@ -261,7 +267,25 @@ export class FakeAgentProvider implements AgentProvider {
       result: {
         status: "completed",
         summary: this.response,
-        output: { objective: request.objective }
+        output: {
+          plan: {
+            summary: this.response,
+            tasks: [
+              {
+                id: "task-1",
+                objective: request.objective,
+                dependencies: [],
+                expectedScopes: ["."],
+                readSet: [],
+                writeSet: [],
+                validationCommandIds: [],
+                completionCriteria: ["Plan reviewed."]
+              }
+            ],
+            risks: [],
+            questions: []
+          }
+        }
       }
     });
   }

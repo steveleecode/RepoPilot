@@ -5,7 +5,43 @@ import { describe, expect, it } from "vitest";
 import { balancedPolicy, type PolicyTask } from "@repopilot/policy";
 import { FakeAgentProvider, ProviderRegistry } from "@repopilot/provider";
 import { WorkflowStore } from "@repopilot/workflow";
-import { planTaskBatches, WorkflowEngine } from "../src/index.js";
+import { parsePlanningIntent, planTaskBatches, WorkflowEngine } from "../src/index.js";
+
+describe("PlanningIntent", () => {
+  const plan = {
+    summary: "Plan parser coverage.",
+    tasks: [
+      {
+        id: "parser",
+        objective: "Add coverage",
+        dependencies: [],
+        expectedScopes: ["tests"],
+        readSet: [],
+        writeSet: [],
+        validationCommandIds: [],
+        completionCriteria: ["Tests planned"]
+      }
+    ],
+    risks: [],
+    questions: []
+  };
+
+  it("accepts a bounded plan and rejects unsafe scopes, commands, and cycles", () => {
+    expect(parsePlanningIntent(plan).tasks[0]?.id).toBe("parser");
+    expect(() =>
+      parsePlanningIntent({ ...plan, tasks: [{ ...plan.tasks[0], writeSet: ["../secret"] }] })
+    ).toThrow();
+    expect(() =>
+      parsePlanningIntent({
+        ...plan,
+        tasks: [{ ...plan.tasks[0], validationCommandIds: ["shell"] }]
+      })
+    ).toThrow("untrusted command ID");
+    expect(() =>
+      parsePlanningIntent({ ...plan, tasks: [{ ...plan.tasks[0], dependencies: ["parser"] }] })
+    ).toThrow("cycle");
+  });
+});
 
 describe("planTaskBatches", () => {
   it("batches independent read-only tasks up to the policy worker limit", () => {
@@ -52,6 +88,7 @@ describe("WorkflowEngine", () => {
     expect(outcome.run.artifacts.map((artifact) => artifact.metadata?.type)).toEqual([
       "repository-discovery",
       "provider-result",
+      "planning-intent",
       "engine-validation"
     ]);
     expect(statuses).toEqual([

@@ -1,5 +1,12 @@
 import { analyzeRepository, type RepositoryAnalysis } from "@repopilot/analyzer";
-import { canParallelizeTasks, type ExecutionPolicy, type PolicyTask } from "@repopilot/policy";
+import path from "node:path";
+import { z } from "zod";
+import {
+  canParallelizeTasks,
+  safePolicy,
+  type ExecutionPolicy,
+  type PolicyTask
+} from "@repopilot/policy";
 import {
   providerResultSchema,
   type ProviderEvent,
@@ -52,6 +59,69 @@ export interface EngineOutcome {
 const discoveryArtifactType = "repository-discovery";
 const providerResultArtifactType = "provider-result";
 const validationArtifactType = "engine-validation";
+const planningArtifactType = "planning-intent";
+
+const relativeScopeSchema = z
+  .string()
+  .min(1)
+  .max(500)
+  .refine(
+    (value) =>
+      !path.isAbsolute(value) &&
+      !path.win32.isAbsolute(value) &&
+      !value.split(/[\\/]/u).includes("..") &&
+      !value.includes("\0"),
+    "Scope must be repository-relative."
+  );
+
+export const planningIntentSchema = z.strictObject({
+  summary: z.string().trim().min(1).max(10_000),
+  tasks: z
+    .array(
+      z.strictObject({
+        id: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/u),
+        objective: z.string().trim().min(1).max(2_000),
+        dependencies: z.array(z.string()).max(30),
+        expectedScopes: z.array(relativeScopeSchema).min(1).max(50),
+        readSet: z.array(relativeScopeSchema).max(100),
+        writeSet: z.array(relativeScopeSchema).max(100),
+        validationCommandIds: z.array(z.string().regex(/^[a-zA-Z0-9_-]+$/u)).max(30),
+        completionCriteria: z.array(z.string().trim().min(1).max(500)).min(1).max(30)
+      })
+    )
+    .min(1)
+    .max(30),
+  risks: z.array(z.string().trim().min(1).max(500)).max(30),
+  questions: z.array(z.string().trim().min(1).max(500)).max(30)
+});
+export type PlanningIntent = z.infer<typeof planningIntentSchema>;
+
+export function parsePlanningIntent(
+  value: unknown,
+  allowedCommandIds: readonly string[] = []
+): PlanningIntent {
+  const plan = planningIntentSchema.parse(value);
+  const ids = new Set(plan.tasks.map((task) => task.id));
+  if (ids.size !== plan.tasks.length) throw new Error("Planning task IDs must be unique.");
+  const allowed = new Set(allowedCommandIds);
+  for (const task of plan.tasks) {
+    if (task.validationCommandIds.some((id) => !allowed.has(id))) {
+      throw new Error(`Planning task ${task.id} references an untrusted command ID.`);
+    }
+    for (const dependency of task.dependencies) {
+      if (!ids.has(dependency))
+        throw new Error(`Planning task ${task.id} has an unknown dependency.`);
+    }
+  }
+  planTaskBatches(
+    safePolicy,
+    plan.tasks.map((task): PolicyTask => ({
+      ...task,
+      validationCommands: task.validationCommandIds
+    }))
+  );
+  return plan;
+}
 
 export function planTaskBatches(policy: ExecutionPolicy, tasks: PolicyTask[]): PolicyTask[][] {
   const remaining = new Map(tasks.map((task) => [task.id, task]));
@@ -200,7 +270,7 @@ export class WorkflowEngine {
         await this.store.recordArtifact(runId, {
           kind: "report",
           summary: discoverySummary(analysis),
-          metadata: { type: discoveryArtifactType }
+          metadata: { type: discoveryArtifactType, repositoryEvidence: planningEvidence(analysis) }
         });
       }
       run = await this.store.transitionRun(runId, "analyzing", "Repository evidence normalized.");
@@ -304,6 +374,14 @@ export class WorkflowEngine {
       const currentTask = requireSingleTask(run);
       const result = recoverProviderResult(run, currentTask.id);
       if (!result) throw new Error("Recorded provider result is missing before validation.");
+      const plan = parsePlanningIntent(result.output.plan);
+      if (!run.artifacts.some((artifact) => artifact.metadata?.type === planningArtifactType)) {
+        await this.store.recordArtifact(runId, {
+          kind: "proposal",
+          summary: plan.summary,
+          metadata: { type: planningArtifactType, plan }
+        });
+      }
       let validation = retryingFailedRun ? undefined : recoverEngineValidation(run, currentTask.id);
       if (!validation) {
         validation = await this.validate({ run, task: currentTask, result });
@@ -382,11 +460,46 @@ function requireProvider(run: RunSnapshot, providers: ProviderRegistry) {
 }
 
 function providerRequest(run: RunSnapshot, taskId: string) {
+  const evidence = findArtifact(run, discoveryArtifactType)?.metadata?.repositoryEvidence ?? {};
   return {
     objective: `Plan this task without modifying repository files: ${run.objective}`,
     repositoryRoot: run.repositoryRoot,
-    metadata: { runId: run.id, taskId, access: "read-only" }
+    metadata: {
+      runId: run.id,
+      taskId,
+      access: "read-only",
+      repositoryEvidence: JSON.stringify(evidence)
+    }
   };
+}
+
+function planningEvidence(analysis: RepositoryAnalysis): Record<string, unknown> {
+  const evidence: Record<string, unknown> = {
+    scannedFileCount: analysis.metadata.scannedFileCount,
+    truncated: false
+  };
+  const categories = {
+    languages: analysis.languages,
+    packageManagers: analysis.packageManagers,
+    manifests: analysis.manifests,
+    workspaces: analysis.workspaces,
+    testFrameworks: analysis.testFrameworks,
+    ciWorkflows: analysis.ciWorkflows,
+    agentInstructions: analysis.agentInstructions
+  };
+  for (const [name, entries] of Object.entries(categories)) {
+    const selected: unknown[] = [];
+    evidence[name] = selected;
+    for (const entry of entries) {
+      selected.push(entry);
+      if (Buffer.byteLength(JSON.stringify(evidence), "utf8") > 20_000) {
+        selected.pop();
+        evidence.truncated = true;
+        break;
+      }
+    }
+  }
+  return evidence;
 }
 
 async function consumeProviderEvents(

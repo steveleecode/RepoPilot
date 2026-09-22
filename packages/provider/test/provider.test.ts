@@ -80,7 +80,8 @@ describe.each([
 it("publishes deterministic provider discovery metadata", () => {
   expect(listProviderDefinitions()).toEqual([
     expect.objectContaining({ id: "codex", integration: "transport-required" }),
-    expect.objectContaining({ id: "fake", integration: "built-in" })
+    expect.objectContaining({ id: "fake", integration: "built-in" }),
+    expect.objectContaining({ id: "ollama", integration: "transport-required" })
   ]);
 });
 

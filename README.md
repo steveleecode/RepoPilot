@@ -4,7 +4,7 @@ RepoPilot is a local-first developer tool for preparing software repositories fo
 
 ## Status
 
-RepoPilot is an early foundation. The CLI, web shell, typed contracts, deterministic analyzer, template renderer, validators, instruction linter, execution policy layer, tests, and CI scaffolding exist. It is not production-ready and does not yet call external AI services, authenticate to GitHub, or modify target repositories.
+RepoPilot is an early foundation. The CLI, web shell, typed contracts, deterministic analyzer, template renderer, validators, instruction linter, execution policy layer, tests, and CI scaffolding exist. It is not production-ready and does not yet call cloud AI services, authenticate to GitHub, or modify target repositories.
 
 Implemented foundations:
 
@@ -15,6 +15,7 @@ Implemented foundations:
 - Versioned execution policy in `.repopilot/config.yaml`, with presets, CLI commands, dashboard display, enforcement helpers, task parallel-safety checks, and audit records.
 - Durable local workflow runs backed by versioned append-only event journals.
 - Vendor-neutral agent-provider contracts with deterministic fake and transport-injected Codex adapters.
+- Local Ollama planning with versioned model configuration and strict plan validation.
 - Deterministic workflow orchestration with persisted discovery, planning, authorization, execution, validation, and review gates.
 - A bounded local command-execution boundary with a trusted catalog, argument and working-directory authorization, environment isolation, cancellation, output limits, and redaction.
 - Next.js dashboard shell with repository placeholders, validation timeline, command palette foundation, and Agent Policy settings.
@@ -61,6 +62,8 @@ pnpm repopilot scan --repo .
 pnpm repopilot scan --repo . --json
 pnpm repopilot providers list
 pnpm repopilot providers doctor
+pnpm repopilot providers configure ollama --model <installed-model>
+pnpm repopilot run "Plan parser coverage" --provider ollama
 pnpm repopilot run "Plan parser coverage" --provider fake
 pnpm repopilot init --repo ../another-repository
 pnpm repopilot validate --repo ../another-repository
@@ -114,7 +117,8 @@ Execution policy is configured in `.repopilot/config.yaml`. Built-in safe defaul
 ## Security Boundaries
 
 RepoPilot does not collect ambient environment variables, print known secrets, add telemetry, make
-external AI calls, or authenticate with GitHub in this milestone. The local executor is an explicit
+cloud AI calls, or authenticate with GitHub in this milestone. Local Ollama planning uses a configured
+loopback endpoint. The local executor is an explicit
 process boundary: it accepts only trusted catalog entries, does not invoke a shell, and receives an
 empty environment unless variables are deliberately injected. It is not an OS-level container or
 remote sandbox, and no CLI or analysis path invokes target-repository commands yet.

@@ -76,9 +76,8 @@ repopilot providers doctor
 ```
 
 Lists provider adapters, integration status, and supported capabilities. The deterministic fake
-provider is built in for contract and workflow tests. The Codex adapter requires a transport and does
-not make a live AI call from this milestone. `providers doctor` reports configured provider health;
-Codex remains unavailable until a future SDK or App Server transport is explicitly configured.
+provider is built in for contract and workflow tests. `providers doctor` checks a configured Ollama
+model. The Codex adapter accepts an injected transport; the standalone CLI does not yet configure one.
 
 ## Validate
 
@@ -187,6 +186,18 @@ repopilot run "Plan parser coverage" --provider fake --json
 ```
 
 Creates a durable run and advances it through repository discovery, analysis, planning, provider
-authorization, read-only execution, validation, review, and completion. The built-in fake provider is
-the only executable provider in this milestone. Codex remains discoverable but requires a future
-transport configuration. The workflow does not execute target-repository scripts or apply changes.
+authorization, read-only execution, validation, review, and completion. The fake provider is useful
+for local checks. To use Ollama, start it separately and configure an installed model:
+
+```bash
+repopilot providers configure ollama --model <installed-model>
+repopilot providers doctor
+repopilot run "Plan parser coverage" --provider ollama --json
+```
+
+The versioned configuration is stored at `.repopilot/models.json`. `--endpoint` accepts a plain HTTP
+loopback origin; the default is `http://127.0.0.1:11434`. The model receives the objective and bounded
+evidence-backed repository metadata, then returns a plan that RepoPilot validates and records. The
+workflow does not execute target-repository scripts or apply changes. Codex remains available through
+the transport-injected provider adapter for applications embedding the CLI; direct Codex CLI transport
+configuration is a later increment.

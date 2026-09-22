@@ -16,6 +16,7 @@ import {
   type PolicyOverride
 } from "@repopilot/policy";
 import {
+  CodexAgentProvider,
   FakeAgentProvider,
   inspectProviders,
   listProviderDefinitions,
@@ -23,6 +24,13 @@ import {
   type ProviderDefinition,
   type ProviderInspection
 } from "@repopilot/provider";
+import {
+  loadModelConfig,
+  modelConfigPath,
+  OllamaAgentProvider,
+  writeModelConfig
+} from "@repopilot/provider/ollama";
+import type { CodexTransport } from "@repopilot/provider";
 import { WorkflowStore, type RunSnapshot } from "@repopilot/workflow";
 
 export const cliExitCode = {
@@ -63,7 +71,8 @@ Usage:
   repopilot doctor [--repo path] [--json]
   repopilot init [--repo path] [--json]
   repopilot scan [--repo path] [--json]
-  repopilot providers <list|doctor> [--json]
+  repopilot providers <list|doctor> [--repo path] [--json]
+  repopilot providers configure ollama --model name [--endpoint url] [--repo path]
   repopilot validate [--repo path] [--json]
   repopilot runs create <objective> [--provider name] [--repo path] [--json]
   repopilot runs list [--repo path] [--json]
@@ -75,7 +84,7 @@ Usage:
   repopilot policy set <path> <value> [--repo path] [--json]
   repopilot run [--repo path] [--json] [--non-interactive]
                 [--parallel] [--max-workers n] [--auto-commit] [--no-push]
-  repopilot run <objective> --provider fake [--repo path] [--json]
+  repopilot run <objective> --provider <fake|ollama|codex> [--repo path] [--json]
 
 Commands:
   version   Print the RepoPilot CLI version.
@@ -95,7 +104,16 @@ Global command options:
   --json              Emit machine-readable JSON.
   -h, --help          Show help.`;
 
-export async function runCli(argv: string[], cwd = process.cwd()): Promise<CliResult> {
+export interface CliProviderRuntime {
+  fetcher?: typeof fetch;
+  codexTransport?: CodexTransport;
+}
+
+export async function runCli(
+  argv: string[],
+  cwd = process.cwd(),
+  runtime: CliProviderRuntime = {}
+): Promise<CliResult> {
   const args = argv.slice(2);
   const command = args[0];
   const commandArgs = args.slice(1);
@@ -107,7 +125,7 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<CliRe
     if (command === "doctor") return handleDoctorCommand(commandArgs, cwd);
     if (command === "init") return await handlePolicyCommand(["init", ...commandArgs], cwd);
     if (command === "scan") return await handleScanCommand(commandArgs, cwd);
-    if (command === "providers") return await handleProvidersCommand(commandArgs);
+    if (command === "providers") return await handleProvidersCommand(commandArgs, cwd, runtime);
     if (command === "validate") {
       return await handlePolicyCommand(["validate", ...commandArgs], cwd);
     }
@@ -115,7 +133,7 @@ export async function runCli(argv: string[], cwd = process.cwd()): Promise<CliRe
     if (command === "runs") return await handleRunsCommand(commandArgs, cwd);
     if (command === "status") return await handleStatusCommand(commandArgs, cwd);
     if (command === "resume") return await handleResumeCommand(commandArgs, cwd);
-    if (command === "run") return await handleRunCommand(commandArgs, cwd);
+    if (command === "run") return await handleRunCommand(commandArgs, cwd, runtime);
     throw new CliUsageError(`Unknown command: ${command}`);
   } catch (error) {
     const exitCode = classifyError(error, command);
@@ -231,16 +249,26 @@ async function handleScanCommand(args: string[], cwd: string): Promise<CliResult
     : textResult(formatAnalysis(analysis));
 }
 
-async function handleProvidersCommand(args: string[]): Promise<CliResult> {
+async function handleProvidersCommand(
+  args: string[],
+  cwd: string,
+  runtime: CliProviderRuntime
+): Promise<CliResult> {
   const subcommand = args[0] ?? "list";
   const { values, positionals } = parseArgs({
     args: args.slice(1),
     allowPositionals: true,
     strict: true,
-    options: commonOptions(false)
+    options: {
+      ...commonOptions(),
+      model: { type: "string" },
+      endpoint: { type: "string" }
+    }
   });
   if (values.help) return textResult(helpText);
-  requireNoPositionals(positionals, "repopilot providers <list|doctor> [--json]");
+  if (subcommand !== "configure")
+    requireNoPositionals(positionals, "repopilot providers <list|doctor|configure> [--json]");
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
   if (subcommand === "list") {
     const providers = listProviderDefinitions();
     return values.json
@@ -248,12 +276,42 @@ async function handleProvidersCommand(args: string[]): Promise<CliResult> {
       : textResult(formatProviders(providers));
   }
   if (subcommand === "doctor") {
-    const providers = await inspectProviders(new ProviderRegistry([new FakeAgentProvider()]));
+    const providers = await inspectProviders(await configuredProviders(repositoryRoot, runtime));
     return values.json
       ? jsonResult(cliExitCode.success, { ok: true, command: "providers doctor", providers })
       : textResult(formatProviderHealth(providers));
   }
+  if (subcommand === "configure") {
+    if (positionals.length !== 1 || positionals[0] !== "ollama")
+      throw new CliUsageError("Usage: repopilot providers configure ollama --model name");
+    const model = stringOption(values.model, "--model");
+    if (!model) throw new CliUsageError("--model is required.");
+    const config = {
+      version: 1 as const,
+      ollama: {
+        model,
+        endpoint: stringOption(values.endpoint, "--endpoint") ?? "http://127.0.0.1:11434",
+        timeoutMs: 120_000,
+        maxResponseBytes: 100_000
+      }
+    };
+    const configPath = await writeModelConfig(repositoryRoot, config);
+    return values.json
+      ? jsonResult(cliExitCode.success, { ok: true, command: "providers configure", configPath })
+      : textResult(`Configured Ollama in ${modelConfigPath}.`);
+  }
   throw new CliUsageError(`Unknown providers command: ${subcommand}`);
+}
+
+async function configuredProviders(
+  repositoryRoot: string,
+  runtime: CliProviderRuntime
+): Promise<ProviderRegistry> {
+  const providers = new ProviderRegistry([new FakeAgentProvider()]);
+  const config = await loadModelConfig(repositoryRoot);
+  if (config?.ollama) providers.register(new OllamaAgentProvider(config.ollama, runtime.fetcher));
+  if (runtime.codexTransport) providers.register(new CodexAgentProvider(runtime.codexTransport));
+  return providers;
 }
 
 async function handlePolicyCommand(args: string[], cwd: string): Promise<CliResult> {
@@ -350,7 +408,11 @@ async function handlePolicyCommand(args: string[], cwd: string): Promise<CliResu
   throw new CliUsageError(`Unknown policy command: ${subcommand}`);
 }
 
-async function handleRunCommand(args: string[], cwd: string): Promise<CliResult> {
+async function handleRunCommand(
+  args: string[],
+  cwd: string,
+  runtime: CliProviderRuntime
+): Promise<CliResult> {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
@@ -373,9 +435,7 @@ async function handleRunCommand(args: string[], cwd: string): Promise<CliResult>
   if (positionals.length > 0) {
     const providerId = stringOption(values.provider, "--provider");
     if (!providerId) {
-      throw new CliUsageError(
-        "Provider-backed runs require --provider. Currently available for execution: fake."
-      );
+      throw new CliUsageError("Provider-backed runs require --provider.");
     }
     const objective = positionals.join(" ").trim();
     if (!objective) throw new CliUsageError("Run objective is required.");
@@ -383,7 +443,7 @@ async function handleRunCommand(args: string[], cwd: string): Promise<CliResult>
     const created = await store.createRun({ objective, provider: providerId });
     const outcome = await new WorkflowEngine({
       store,
-      providers: new ProviderRegistry([new FakeAgentProvider()]),
+      providers: await configuredProviders(repositoryRoot, runtime),
       policy: resolved.execution
     }).run(created.id);
     const exitCode =
