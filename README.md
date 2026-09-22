@@ -96,6 +96,7 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 ## Documentation
 
 - [Product Spec](docs/product/PRODUCT_SPEC.md)
+- [Implementation Roadmap](docs/product/IMPLEMENTATION_ROADMAP.md)
 - [Implemented Features](docs/product/IMPLEMENTED_FEATURES.md)
 - [CLI Reference](docs/product/CLI_REFERENCE.md)
 - [Execution Policy](docs/product/EXECUTION_POLICY.md)

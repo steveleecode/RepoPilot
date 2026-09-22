@@ -26,6 +26,22 @@ Repository owners can configure execution policy in `.repopilot/config.yaml`, th
 
 RepoPilot starts CLI-first with a local dashboard shell. The CLI is the first trustworthy execution surface because it can inspect the developer environment directly and avoid hosted access or authentication complexity.
 
+## Local Model Direction
+
+The first live AI integration will be a local model, beginning with Ollama behind the existing
+agent-provider contract. The local model interprets deterministic repository evidence and returns
+schema-validated plans and, in later phases, structured change and command intentions. It never gains
+direct filesystem, process, approval, workflow-state, or Git authority.
+
+RepoPilot remains responsible for selecting and bounding context, validating paths and commands,
+authorizing actions through execution policy, applying changes in isolated worktrees, running trusted
+validation commands, and presenting the final diff. This lets smaller local models focus on narrow,
+well-grounded tasks while deterministic systems retain control.
+
+Source-code context requires an explicit security decision before implementation because current
+repository guidance prohibits loading target source into the RepoPilot process. The initial Ollama
+milestone therefore uses objectives and evidence-backed metadata only.
+
 ## MVP Non-Goals
 
 - Hosted GitHub App behavior.
