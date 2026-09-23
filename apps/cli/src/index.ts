@@ -4,7 +4,13 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { analyzeRepository, type RepositoryAnalysis } from "@repopilot/analyzer";
-import { WorkflowEngine } from "@repopilot/orchestrator";
+import {
+  applyChanges,
+  getDevelopmentArtifacts,
+  proposeChanges,
+  validateAppliedChanges,
+  WorkflowEngine
+} from "@repopilot/orchestrator";
 import {
   defaultConfig,
   formatResolvedPolicy,
@@ -85,6 +91,11 @@ Usage:
   repopilot run [--repo path] [--json] [--non-interactive]
                 [--parallel] [--max-workers n] [--auto-commit] [--no-push]
   repopilot run <objective> --provider <fake|ollama|codex> [--repo path] [--json]
+  repopilot propose <run-id> [--task id] [--file path] [--repo path] [--json]
+  repopilot repair <run-id> [--file path] [--repo path] [--json]
+  repopilot apply <run-id> [--approve] [--repo path] [--json]
+  repopilot verify <run-id> --execute-checks [--repo path] [--json]
+  repopilot inspect <run-id> [--repo path] [--json]
 
 Commands:
   version   Print the RepoPilot CLI version.
@@ -98,6 +109,11 @@ Commands:
   resume    Move an interrupted or failed run back to planning.
   policy    Show, validate, initialize, or update execution policy.
   run       Preview policy or execute a provider-backed read-only workflow.
+  propose   Ask Ollama for bounded, reviewable changes to a planned task.
+  repair    Propose a bounded repair after failed validation.
+  apply     Apply a validated proposal to an isolated Git worktree.
+  verify    Execute trusted validation checks in the applied worktree.
+  inspect   Show the plan, proposal, applied worktree, and validation artifacts.
 
 Global command options:
   --repo <path>       Target repository. Defaults to the current directory.
@@ -134,6 +150,15 @@ export async function runCli(
     if (command === "status") return await handleStatusCommand(commandArgs, cwd);
     if (command === "resume") return await handleResumeCommand(commandArgs, cwd);
     if (command === "run") return await handleRunCommand(commandArgs, cwd, runtime);
+    if (
+      command === "propose" ||
+      command === "repair" ||
+      command === "apply" ||
+      command === "verify" ||
+      command === "inspect"
+    ) {
+      return await handleDevelopmentCommand(command, commandArgs, cwd);
+    }
     throw new CliUsageError(`Unknown command: ${command}`);
   } catch (error) {
     const exitCode = classifyError(error, command);
@@ -142,6 +167,92 @@ export async function runCli(
       ? jsonResult(exitCode, { ok: false, error: { message, exitCode } })
       : textResult(`Error: ${message}\n\nRun repopilot --help for usage.`, exitCode);
   }
+}
+
+async function handleDevelopmentCommand(
+  command: "propose" | "repair" | "apply" | "verify" | "inspect",
+  args: string[],
+  cwd: string
+): Promise<CliResult> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    strict: true,
+    options: {
+      ...commonOptions(),
+      task: { type: "string" },
+      file: { type: "string", multiple: true },
+      approve: { type: "boolean" },
+      "execute-checks": { type: "boolean" }
+    }
+  });
+  if (values.help) return textResult(helpText);
+  if (positionals.length !== 1 || !positionals[0])
+    throw new CliUsageError(`Usage: repopilot ${command} <run-id>`);
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
+  const store = new WorkflowStore(repositoryRoot);
+  const runId = positionals[0];
+  let result: unknown;
+  if (command === "propose" || command === "repair") {
+    const config = await loadModelConfig(repositoryRoot);
+    if (!config?.ollama)
+      throw new Error("Ollama is not configured. Run providers configure ollama.");
+    const taskId = stringOption(values.task, "--task");
+    const policy = resolvePolicy({
+      repositoryConfig: await loadRepositoryConfig(repositoryRoot)
+    }).execution;
+    result = await proposeChanges({
+      store,
+      runId,
+      ollama: config.ollama,
+      policy,
+      repair: command === "repair",
+      ...(taskId ? { taskId } : {}),
+      files: values.file ?? []
+    });
+  } else if (command === "apply") {
+    const config = await loadRepositoryConfig(repositoryRoot);
+    const policy = resolvePolicy({ repositoryConfig: config }).execution;
+    if (values.approve) {
+      const approval = await store.requestApproval(runId, "apply");
+      await store.decideApproval(runId, approval.id, true, "Explicit --approve CLI flag.");
+    }
+    result = {
+      worktree: await applyChanges({ store, runId, policy, approval: values.approve ?? false })
+    };
+  } else if (command === "verify") {
+    const config = await loadRepositoryConfig(repositoryRoot);
+    const policy = resolvePolicy({ repositoryConfig: config }).execution;
+    if (values["execute-checks"]) {
+      const approval = await store.requestApproval(runId, "execute-validation");
+      await store.decideApproval(runId, approval.id, true, "Explicit --execute-checks CLI flag.");
+    }
+    result = await validateAppliedChanges({
+      store,
+      runId,
+      policy,
+      executeChecks: values["execute-checks"] ?? false
+    });
+  } else {
+    result = getDevelopmentArtifacts(await store.loadRun(runId));
+  }
+  const exitCode =
+    command === "verify" &&
+    typeof result === "object" &&
+    result !== null &&
+    "passed" in result &&
+    result.passed === false
+      ? cliExitCode.workflowError
+      : cliExitCode.success;
+  return values.json
+    ? jsonResult(exitCode, {
+        ok: exitCode === cliExitCode.success,
+        command,
+        repositoryRoot,
+        runId,
+        result
+      })
+    : textResult(`${command}: ${JSON.stringify(result, null, 2)}`, exitCode);
 }
 
 export function createDoctorReport(cwd = process.cwd()): DoctorReport {

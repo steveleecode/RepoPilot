@@ -42,6 +42,8 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 - `policy set <path> <value>`
 - `run` with one-run policy overrides
 - `run <objective> --provider fake` for a persisted read-only provider workflow
+- `run <objective> --provider ollama` for a local-model planning turn
+- `propose`, `inspect`, `apply`, `verify`, and `repair` for the first local development workflow
 
 Repository-oriented commands accept `--repo <path>`. Data-producing commands support JSON output,
 unknown flags are rejected, and command failures use stable categorized exit codes.
@@ -84,8 +86,8 @@ interrupted validation can resume from its recorded provider result without repe
 
 The engine bounds provider event consumption and records failure reports according to execution policy.
 It also produces stable dependency-ordered task batches and uses policy scope-overlap rules to keep
-unsafe work out of the same batch. It does not execute repository scripts, apply generated changes, or
-perform Git mutations.
+unsafe work out of the same batch. Separate development commands now apply generated changes only in
+isolated Git worktrees and run opt-in validation. They do not commit or push.
 
 ## Execution Boundary
 
@@ -95,8 +97,8 @@ accepted. Additional arguments must exactly match an allowed variant, working di
 lexically and through real paths, and subprocesses run without a shell or inherited environment.
 
 Execution results distinguish completion, non-zero failure, denial, timeout, output-limit termination,
-cancellation, and spawn failure. Captured output is bounded and redacted. This boundary is not yet
-wired to the CLI or workflow engine and is not a substitute for OS-level container isolation.
+cancellation, and spawn failure. Captured output is bounded and redacted. `verify --execute-checks`
+uses this boundary, but it is not a substitute for OS-level container isolation.
 
 `doctor` inspects the RepoPilot development environment, validates the supported Node major-version
 range, and reports pnpm, Git, the current directory, and whether the directory is a Git repository.
@@ -177,13 +179,11 @@ The repository includes Vitest unit tests for analyzer, validator, instruction-l
 RepoPilot still does not implement:
 
 - Additional language ecosystems beyond the currently supported manifest and tool families.
-- Real write application of generated files.
 - Directly configured Codex SDK or App Server transport in the CLI.
-- Live Codex SDK/App Server transport and authentication.
 - OS-level container or remote execution sandboxing.
-- Workflow/CLI execution of target-repository commands.
-- Git worktree orchestration.
-- Actual automatic commit, push, or pull-request execution.
+- Interactive approval, cancel, and cleanup operations for development worktrees.
+- Arbitrary language/tool validation catalogs beyond the current Node/pnpm checks.
+- Automatic commit, push, or pull-request execution.
 - GitHub authentication.
 - Cloud AI calls.
 - Telemetry.

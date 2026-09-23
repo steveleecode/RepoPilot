@@ -198,6 +198,36 @@ repopilot run "Plan parser coverage" --provider ollama --json
 The versioned configuration is stored at `.repopilot/models.json`. `--endpoint` accepts a plain HTTP
 loopback origin; the default is `http://127.0.0.1:11434`. The model receives the objective and bounded
 evidence-backed repository metadata, then returns a plan that RepoPilot validates and records. The
-workflow does not execute target-repository scripts or apply changes. Codex remains available through
-the transport-injected provider adapter for applications embedding the CLI; direct Codex CLI transport
-configuration is a later increment.
+planning turn does not execute target-repository scripts or apply changes. Codex remains available
+through the transport-injected provider adapter for applications embedding the CLI; direct Codex CLI
+transport configuration is a later increment.
+
+## Local Development Workflow (Phases 8–10)
+
+```bash
+repopilot propose <run-id> --task <planned-task-id> --file src/example.ts --json
+repopilot inspect <run-id> --json
+repopilot apply <run-id> --approve --json
+repopilot verify <run-id> --execute-checks --json
+# If validation fails and policy permits a retry:
+repopilot repair <run-id> --json
+repopilot inspect <run-id> --json
+repopilot apply <run-id> --approve --json
+repopilot verify <run-id> --execute-checks --json
+```
+
+`propose` uses a separate read-only broker to gather bounded source context and ask loopback Ollama
+for structured changes. `--file` is repeatable and must remain within planned read/write scopes.
+`inspect` shows the plan, proposal, worktree, and validation artifacts. Review the proposal before
+`apply`. Apply checks policy and base hashes, then writes only to a dedicated worktree under the
+system temporary directory (its exact path is returned and recorded in the run).
+The primary checkout is unchanged. `--approve` records explicit apply approval when used.
+
+`verify` requires `--execute-checks` because repository tooling can run code. It runs a code-owned
+command catalog through the no-shell executor: `git diff --check` plus policy-selected format, lint,
+typecheck, test, and build checks. Results are bounded and recorded. Failed validation permits
+`repair` only up to the policy retry limit and only within the original task scope. No command here
+commits, pushes, or opens a pull request; those remain later phases.
+
+The standalone CLI currently generates change proposals with Ollama only. Codex remains an injected
+planning adapter; live standalone Codex transport is scheduled for Phase 13.

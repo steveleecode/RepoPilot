@@ -4,7 +4,10 @@ RepoPilot is a local-first developer tool for preparing software repositories fo
 
 ## Status
 
-RepoPilot is an early foundation. The CLI, web shell, typed contracts, deterministic analyzer, template renderer, validators, instruction linter, execution policy layer, tests, and CI scaffolding exist. It is not production-ready and does not yet call cloud AI services, authenticate to GitHub, or modify target repositories.
+RepoPilot is an early local development tool. It can plan with Ollama, propose bounded changes, apply
+them in an isolated Git worktree, and run explicitly approved validation checks. It is not
+production-ready and does not yet call cloud AI services, authenticate to GitHub, or commit/push
+changes.
 
 Implemented foundations:
 
@@ -16,6 +19,10 @@ Implemented foundations:
 - Durable local workflow runs backed by versioned append-only event journals.
 - Vendor-neutral agent-provider contracts with deterministic fake and transport-injected Codex adapters.
 - Local Ollama planning with versioned model configuration and strict plan validation.
+- A separate bounded source-context broker for Ollama change proposals, with manifests and strict
+  task-scope validation.
+- Isolated Git-worktree apply with stale-base detection, plus opt-in trusted validation and bounded
+  repair proposals.
 - Deterministic workflow orchestration with persisted discovery, planning, authorization, execution, validation, and review gates.
 - A bounded local command-execution boundary with a trusted catalog, argument and working-directory authorization, environment isolation, cancellation, output limits, and redaction.
 - Next.js dashboard shell with repository placeholders, validation timeline, command palette foundation, and Agent Policy settings.
@@ -64,6 +71,11 @@ pnpm repopilot providers list
 pnpm repopilot providers doctor
 pnpm repopilot providers configure ollama --model <installed-model>
 pnpm repopilot run "Plan parser coverage" --provider ollama
+pnpm repopilot propose <run-id> --task <planned-task-id>
+pnpm repopilot inspect <run-id>
+pnpm repopilot apply <run-id> --approve
+pnpm repopilot verify <run-id> --execute-checks
+pnpm repopilot repair <run-id>
 pnpm repopilot run "Plan parser coverage" --provider fake
 pnpm repopilot init --repo ../another-repository
 pnpm repopilot validate --repo ../another-repository
@@ -110,15 +122,17 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 
 ## Development Workflow
 
-Run `pnpm check` before committing. Analysis must treat repository contents as untrusted input, avoid executing repository scripts, avoid loading repository code, and attach evidence to every detected fact.
+Run `pnpm check` before committing. Analysis must treat repository contents as untrusted input,
+avoid executing repository scripts, avoid loading repository code in the main process, and attach
+evidence to every detected fact. Validation executes target tooling only with `--execute-checks`;
+use it only for repositories you trust, because this is not an OS sandbox.
 
 Execution policy is configured in `.repopilot/config.yaml`. Built-in safe defaults are applied first, then presets, repository config, and one-run CLI flags. No automated commits, pushes, pull requests, destructive actions, or parallel writes may run unless deterministic policy authorization allows them.
 
 ## Security Boundaries
 
-RepoPilot does not collect ambient environment variables, print known secrets, add telemetry, make
-cloud AI calls, or authenticate with GitHub in this milestone. Local Ollama planning uses a configured
-loopback endpoint. The local executor is an explicit
-process boundary: it accepts only trusted catalog entries, does not invoke a shell, and receives an
-empty environment unless variables are deliberately injected. It is not an OS-level container or
-remote sandbox, and no CLI or analysis path invokes target-repository commands yet.
+RepoPilot does not add telemetry, make cloud AI calls, or authenticate with GitHub in this milestone.
+Ollama uses a configured loopback endpoint. Source context is read by a separate broker process and
+is capped before being sent to Ollama. The executor accepts only code-owned commands, uses no shell,
+and receives an explicit environment allowlist. Validation may execute target tool configuration and
+scripts after `--execute-checks`; it is not an OS-level container or remote sandbox.

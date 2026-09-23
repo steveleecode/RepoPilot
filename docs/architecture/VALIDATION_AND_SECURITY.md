@@ -29,9 +29,10 @@ RepoPilot currently follows these boundaries:
 - Redacts injected secret values and common credential-shaped output before returning structured
   results.
 
-This is a process-level safety boundary, not kernel isolation. Callers must persist its structured
-authorization and execution results in workflow audit state. No current CLI or analysis path executes
-repository commands.
+This is a process-level safety boundary, not kernel isolation. `repopilot verify --execute-checks`
+uses it to run code-owned validation commands in an isolated worktree and persists bounded results.
+Validation tools may execute target configuration or package scripts, so the flag is an explicit user
+approval to run them. Analysis never executes repository scripts.
 
 ## Path Safety
 
@@ -50,9 +51,11 @@ monitoring disabled, plus time and output limits.
 
 Generated content is represented as proposed files or edits. Validators operate on proposed changes before write operations whenever possible.
 
-The workflow journal enforces validation and review gates: a running workflow cannot transition
-directly to completed, and validation cannot transition directly to completed. The current engine is
-limited to read-only planning requests and does not execute target-repository commands or apply output.
+The workflow journal enforces planning validation and review gates. The development commands record
+separate proposal, apply, and validation artifacts after a completed planning run. The source-context
+broker is a separate process that reads bounded, selected files and sends them only to loopback Ollama;
+the main process sees hashes and generated proposals, not assembled source context. Apply targets an
+isolated worktree, checks stale hashes, and never writes the primary checkout. This is not an OS sandbox.
 
 ## Validation Commands
 

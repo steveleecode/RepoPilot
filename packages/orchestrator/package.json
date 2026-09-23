@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@repopilot/analyzer": "workspace:*",
+    "@repopilot/executor": "workspace:*",
     "@repopilot/policy": "workspace:*",
     "@repopilot/provider": "workspace:*",
     "@repopilot/workflow": "workspace:*",

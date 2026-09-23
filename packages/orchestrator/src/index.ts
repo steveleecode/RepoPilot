@@ -601,3 +601,13 @@ function defaultEngineValidator(context: EngineValidationContext): EngineValidat
     ? { passed: true, summary: "Structured provider result validated." }
     : { passed: false, summary: `Provider result status is ${context.result.status}.` };
 }
+
+export {
+  applyChanges,
+  changeProposalSchema,
+  getDevelopmentArtifacts,
+  proposeChanges,
+  validateAppliedChanges,
+  validateChangeProposal,
+  type ChangeProposal
+} from "./development.js";

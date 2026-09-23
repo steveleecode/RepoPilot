@@ -27,10 +27,11 @@ Responsibilities:
 - Initialize, validate, show, and update execution policy config.
 - Analyze repository metadata.
 - Display one-run policy override previews.
-- Execute durable read-only workflows through the deterministic fake provider.
+- Execute durable read-only planning workflows through fake or Ollama providers.
+- Propose bounded changes, inspect them, apply in isolated worktrees, validate, and request repairs.
 
-The CLI can plan through a configured local Ollama model. It does not yet apply generated files,
-execute target-repository commands, commit, push, or open pull requests.
+The CLI does not yet commit, push, or open pull requests. Live standalone Codex transport remains
+separate from its injected adapter.
 
 ## `packages/shared`
 
@@ -175,6 +176,7 @@ Responsibilities:
 - A deterministic fake provider for workflow and contract tests.
 - A transport-injected Codex adapter with no built-in authentication or external calls.
 - A configurable local Ollama adapter with bounded HTTP responses and loopback-only endpoints.
+- A separate bounded source-context broker used for Ollama change proposals.
 - Terminal-event enforcement and normalization of transport failures.
 
 RepoPilot remains the workflow and policy authority. Provider events cannot authorize writes, Git
@@ -198,10 +200,12 @@ Responsibilities:
 - Bound provider event consumption and prevent concurrent execution of the same run in one process.
 - Produce deterministic dependency-ordered task batches, using policy write-scope checks and worker
   limits to decide which tasks may run together.
+- Validate change proposals against planned scopes and context hashes, apply to isolated Git
+  worktrees, and run explicit policy-selected validation through the trusted executor.
 
-This milestone executes read-only planning tasks only. It does not run target-repository commands or
-apply provider output; connecting the execution boundary and proposal application remain separate
-later phases.
+The planning engine remains read-only. Separate development operations make proposals reviewable
+before apply and require explicit approval to execute target tooling. Commits and pushes remain later
+phases.
 
 ## `packages/ui`
 

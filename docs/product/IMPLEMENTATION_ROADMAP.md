@@ -56,18 +56,17 @@ Exit criteria:
 - The fake provider and Ollama provider pass the same planning contract tests.
 - No file writes, repository commands, Git mutations, cloud calls, or implicit approvals occur.
 
-### Phase 8: Bounded Source Context And Change Intent
+### Phase 8: Bounded Source Context And Change Intent (Implemented first vertical slice)
 
 Give the local model the minimum relevant source context needed to propose changes, then normalize its
 response into validated change intentions.
 
-This phase starts with a required security decision. Current repository guidance says not to load
-target source code into the RepoPilot process. Before implementation, adopt one documented approach:
+This phase used the separate read-only context broker approach, documented in
+`docs/decisions/0005-source-context-broker.md`. The primary RepoPilot process does not load target
+source during context assembly. The broker sends bounded context only to loopback Ollama.
 
-1. Permit bounded source reads as untrusted text while continuing to prohibit importing, evaluating,
-   or executing that code; or
-2. Keep the main process source-blind and introduce a separate read-only context broker that streams
-   approved context to the local provider.
+The first cut supports Ollama change generation. Codex planning remains available through its
+transport interface; a live standalone Codex transport is still Phase 13.
 
 Scope after that decision:
 
@@ -90,7 +89,7 @@ Exit criteria:
 - Every proposed path and command is schema-valid and tied to a planned task and evidence.
 - Proposals remain read-only artifacts; the target checkout is unchanged.
 
-### Phase 9: Proposal Validation And Isolated Apply
+### Phase 9: Proposal Validation And Isolated Apply (Implemented first vertical slice)
 
 Turn validated change intentions into reviewable changes inside disposable Git worktrees.
 
@@ -113,7 +112,7 @@ Exit criteria:
   resumed.
 - The model has no direct filesystem or Git authority.
 
-### Phase 10: Validation And Bounded Repair Loop
+### Phase 10: Validation And Bounded Repair Loop (Implemented first vertical slice)
 
 Connect applied worktrees to the Phase 6 executor and feed concise failures back to the provider.
 
@@ -209,14 +208,6 @@ Exit criteria:
 
 ## Recommended Next Increment
 
-Implement only the first vertical slice of Phase 7:
-
-1. Add local-model configuration.
-2. Add an injected Ollama transport and health check.
-3. Define `PlanningIntent` in `packages/orchestrator`, which owns normalized workflow plans.
-4. Send the objective plus evidence-backed repository summary.
-5. Parse and persist one structured plan.
-6. Expose it through `repopilot run ... --provider ollama --json`.
-
-That slice proves the local-model bridge while keeping apply, command execution, repair, and Git
-authority behind later deterministic gates.
+Complete Phase 11 review and Git lifecycle, then Phase 12 terminal ergonomics. The current
+development workflow can plan, propose, apply in an isolated worktree, validate, and propose bounded
+repairs, but it does not commit, push, open PRs, or offer automatic interactive approval.
