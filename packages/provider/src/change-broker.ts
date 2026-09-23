@@ -2,8 +2,10 @@
 // target source files while assembling model context.
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { ollamaConfigSchema, validateLoopbackEndpoint } from "./ollama.js";
 
@@ -238,7 +240,10 @@ export async function generateChangeProposal(
   };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (
+  process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   try {
     const chunks: Buffer[] = [];
     let bytes = 0;

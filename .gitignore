@@ -10,3 +10,4 @@ test-results/
 .env*
 !.env.example
 .repopilot/runs/
+release-artifacts/

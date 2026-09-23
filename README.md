@@ -47,6 +47,18 @@ Install dependencies:
 pnpm install
 ```
 
+For a standalone installation, download `repopilot-0.1.0.tgz` from the release and run:
+
+```bash
+npm install -g ./repopilot-0.1.0.tgz
+repopilot doctor
+```
+
+The release archive contains the CLI and context broker; it does not require the monorepo or a
+global pnpm installation for the CLI itself. pnpm 11 is needed when validating pnpm projects.
+See the [v0.1.0 developer-preview notes](docs/releases/v0.1.0.md) for the supported workflow,
+limitations, upgrade, and uninstall instructions.
+
 ## Commands
 
 ```bash
@@ -119,6 +131,7 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 - [Package Reference](docs/architecture/PACKAGE_REFERENCE.md)
 - [Validation and Security](docs/architecture/VALIDATION_AND_SECURITY.md)
 - [Decision Records](docs/decisions)
+- [Release Notes](docs/releases/v0.1.0.md)
 
 ## Development Workflow
 

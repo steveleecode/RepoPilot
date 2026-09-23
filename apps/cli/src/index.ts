@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { analyzeRepository, type RepositoryAnalysis } from "@repopilot/analyzer";
 import {
@@ -856,7 +857,10 @@ function jsonResult(exitCode: number, value: unknown): CliResult {
 
 class CliUsageError extends Error {}
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (
+  process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   const result = await runCli(process.argv);
   const stream = result.exitCode === cliExitCode.success ? process.stdout : process.stderr;
   stream.write(`${result.output}\n`);

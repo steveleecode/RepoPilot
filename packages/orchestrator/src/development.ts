@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import { lstat, mkdir, realpath, writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -193,7 +193,10 @@ export async function proposeChanges(input: {
     files: input.files ?? [],
     ollama: input.ollama
   };
-  const broker = new URL("../../provider/dist/change-broker.js", import.meta.url);
+  const bundledBroker = new URL("./change-broker.mjs", import.meta.url);
+  const broker = existsSync(fileURLToPath(bundledBroker))
+    ? bundledBroker
+    : new URL("../../provider/dist/change-broker.js", import.meta.url);
   const raw = await runJsonProcess(
     process.execPath,
     [fileURLToPath(broker)],
