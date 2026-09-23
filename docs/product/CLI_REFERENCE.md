@@ -229,5 +229,10 @@ typecheck, test, and build checks. Results are bounded and recorded. Failed vali
 `repair` only up to the policy retry limit and only within the original task scope. No command here
 commits, pushes, or opens a pull request; those remain later phases.
 
+A fresh worktree does not inherit the primary checkout's `node_modules`. For Node projects, install
+dependencies in the returned worktree before `verify` (for example, `pnpm install --frozen-lockfile
+--ignore-scripts`). This is a user-run step: RepoPilot does not automatically execute a target
+repository's installation scripts.
+
 The standalone CLI currently generates change proposals with Ollama only. Codex remains an injected
 planning adapter; live standalone Codex transport is scheduled for Phase 13.

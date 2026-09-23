@@ -406,6 +406,14 @@ export async function validateAppliedChanges(input: {
     throw new Error("Validation already recorded for this proposal.");
   const worktree = await realpath(applied.metadata.worktree);
   const checks = [...new Set(input.policy.validation.before_commit)];
+  if (
+    checks.length > 0 &&
+    !(await lstat(path.join(worktree, "node_modules")).catch(() => undefined))
+  ) {
+    throw new Error(
+      "Validation worktree has no node_modules. Install dependencies there manually before verify."
+    );
+  }
   const executor = new LocalCommandExecutor({
     repositoryRoot: worktree,
     commands: [
