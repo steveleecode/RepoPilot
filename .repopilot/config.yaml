@@ -16,8 +16,8 @@ execution:
     message_format: conventional
     sign_commits: false
   pushes:
-    enabled: false
-    strategy: never
+    enabled: true
+    strategy: after_feature
     remote: origin
     allowed_branch_patterns:
       - "repopilot/**"

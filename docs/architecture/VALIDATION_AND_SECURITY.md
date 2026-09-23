@@ -12,9 +12,29 @@ RepoPilot currently follows these boundaries:
 - Do not collect environment variables.
 - Do not print secrets.
 - Do not add telemetry.
-- Do not make external AI calls.
+- Do not make implicit cloud AI calls. Local Ollama requires configuration; Codex requires explicit
+  provider selection and a separate Codex CLI sign-in. Codex-managed credentials stay outside
+  RepoPilot's repository config and release archive.
 - Do not authenticate with GitHub.
 - Do not merge pull requests.
+
+## Local Execution Boundary
+
+`packages/executor` provides the only local subprocess primitive intended for future workflow use. It:
+
+- Selects executables from trusted code-owned command definitions, never raw provider command text.
+- Uses exact allowlisted argument vectors and invokes the executable directly with `shell: false`.
+- Rejects absolute, traversing, out-of-scope, missing, and symlink-escaping working directories.
+- Starts with no inherited environment and accepts only explicitly allowlisted variables.
+- Enforces time and combined-output ceilings that requests may only lower, supports cancellation, and
+  escalates termination after a bounded grace period.
+- Redacts injected secret values and common credential-shaped output before returning structured
+  results.
+
+This is a process-level safety boundary, not kernel isolation. `repopilot verify --execute-checks`
+uses it to run code-owned validation commands in an isolated worktree and persists bounded results.
+Validation tools may execute target configuration or package scripts, so the flag is an explicit user
+approval to run them. Analysis never executes repository scripts.
 
 ## Path Safety
 
@@ -24,9 +44,20 @@ Shared path normalization rejects path traversal. Repository-relative paths are 
 
 Analyzer facts must include evidence. RepoPilot must not claim a repository fact was detected without a source path, source type, and description.
 
+Repository traversal is bounded by depth and entry-count limits, does not follow symbolic links, skips
+known dependency and build-output directories, and applies a byte limit before reading known metadata
+files. Git branch and dirty-state detection uses only read-only Git commands with hooks and filesystem
+monitoring disabled, plus time and output limits.
+
 ## Proposed Changes Before Writes
 
 Generated content is represented as proposed files or edits. Validators operate on proposed changes before write operations whenever possible.
+
+The workflow journal enforces planning validation and review gates. The development commands record
+separate proposal, apply, and validation artifacts after a completed planning run. The source-context
+broker is a separate process that reads bounded, selected files and sends them only to loopback Ollama;
+the main process sees hashes and generated proposals, not assembled source context. Apply targets an
+isolated worktree, checks stale hashes, and never writes the primary checkout. This is not an OS sandbox.
 
 ## Validation Commands
 

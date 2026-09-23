@@ -1,5 +1,5 @@
 {
-  "name": "@repopilot/analyzer",
+  "name": "@repopilot/executor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@repopilot/shared": "workspace:*",
-    "yaml": "^2.8.0"
+    "@repopilot/shared": "workspace:*"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@repopilot/analyzer",
+  "name": "@repopilot/provider",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,6 +7,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./ollama": {
+      "types": "./dist/ollama.d.ts",
+      "import": "./dist/ollama.js"
+    },
+    "./codex-app-server": {
+      "types": "./dist/codex-app-server.d.ts",
+      "import": "./dist/codex-app-server.js"
     }
   },
   "scripts": {
@@ -15,7 +23,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@repopilot/shared": "workspace:*",
-    "yaml": "^2.8.0"
+    "zod": "^4.0.14"
   }
 }
