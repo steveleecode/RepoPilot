@@ -27,11 +27,11 @@ Responsibilities:
 - Initialize, validate, show, and update execution policy config.
 - Analyze repository metadata.
 - Display one-run policy override previews.
-- Execute durable read-only planning workflows through fake or Ollama providers.
+- Execute durable read-only planning workflows through fake, Ollama, or Codex providers.
 - Propose bounded changes, inspect them, apply in isolated worktrees, validate, and request repairs.
 
-The CLI does not yet commit, push, or open pull requests. Live standalone Codex transport remains
-separate from its injected adapter.
+The CLI does not yet commit, push, or open pull requests. Codex uses a local App Server process and
+Codex-managed authentication.
 
 ## `packages/shared`
 
@@ -174,15 +174,14 @@ Responsibilities:
 - Start, resume, and cancel lifecycle methods.
 - Normalized asynchronous provider events and structured results.
 - A deterministic fake provider for workflow and contract tests.
-- A transport-injected Codex adapter with no built-in authentication or external calls.
+- A Codex adapter with a local App Server transport and Codex-managed authentication.
 - A configurable local Ollama adapter with bounded HTTP responses and loopback-only endpoints.
-- A separate bounded source-context broker used for Ollama change proposals.
+- A separate bounded source-context broker used for Ollama and Codex change proposals.
 - Terminal-event enforcement and normalization of transport failures.
 
 RepoPilot remains the workflow and policy authority. Provider events cannot authorize writes, Git
-actions, approvals, or state transitions by themselves. A live Codex SDK or App Server transport is a
-future integration layer behind this package's `CodexTransport` boundary. Ollama uses the same
-provider contract and returns an untrusted plan for orchestrator validation.
+actions, approvals, or state transitions by themselves. The local Codex App Server remains behind
+the `CodexTransport` boundary. Ollama and Codex return untrusted results for orchestrator validation.
 
 ## `packages/orchestrator`
 

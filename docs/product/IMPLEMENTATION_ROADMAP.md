@@ -65,8 +65,8 @@ This phase used the separate read-only context broker approach, documented in
 `docs/decisions/0005-source-context-broker.md`. The primary RepoPilot process does not load target
 source during context assembly. The broker sends bounded context only to loopback Ollama.
 
-The first cut supports Ollama change generation. Codex planning remains available through its
-transport interface; a live standalone Codex transport is still Phase 13.
+The first cut supported Ollama change generation. v0.2.0 added a standalone Codex App Server
+transport and reused the same bounded context broker and proposal validator for Codex changes.
 
 Scope after that decision:
 
@@ -186,8 +186,8 @@ Scope:
   uninstall path.
 - Add OpenAI-compatible local endpoints, llama.cpp, and MLX behind the existing provider contract only
   after Ollama contract parity is stable.
-- Connect the existing Codex adapter to an official SDK or App Server transport with a read-only
-  planning sandbox, explicit authentication, and the same plan validation contract.
+- Harden the now-implemented Codex App Server transport with broader compatibility fixtures and
+  failure injection across Codex CLI versions.
 - Add explicit network-egress policy before supporting LAN or cloud endpoints.
 - Add compatibility fixtures, provider conformance tests, performance budgets, and failure injection.
 - Document model sizing and context guidance for Apple Silicon without hard-coding one model family.

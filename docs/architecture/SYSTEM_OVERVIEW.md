@@ -27,8 +27,9 @@ are reconstructed from the journal so interrupted processes can inspect and resu
 an AI provider to recreate orchestration state.
 
 Provider adapters expose the same start, resume, cancel, health, capability, event-streaming, and
-structured-result contract. The Codex adapter accepts an injected transport so the deterministic core
-does not authenticate, make network calls, or grant a provider authority over workflow or policy state.
+structured-result contract. The Codex adapter uses a local App Server transport and Codex-managed
+authentication; the deterministic core still does not grant a provider authority over workflow or
+policy state.
 
 The workflow engine advances persisted runs through discovery, analysis, planning, authorization,
 execution, validation, and review. Provider results are recorded before validation, allowing an

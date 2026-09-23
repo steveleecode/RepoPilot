@@ -47,16 +47,16 @@ Install dependencies:
 pnpm install
 ```
 
-For a standalone installation, download `repopilot-0.1.0.tgz` from the release and run:
+For a standalone installation, download `repopilot-0.2.0.tgz` from the release and run:
 
 ```bash
-npm install -g ./repopilot-0.1.0.tgz
+npm install -g ./repopilot-0.2.0.tgz
 repopilot doctor
 ```
 
 The release archive contains the CLI and context broker; it does not require the monorepo or a
 global pnpm installation for the CLI itself. pnpm 11 is needed when validating pnpm projects.
-See the [v0.1.0 developer-preview notes](docs/releases/v0.1.0.md) for the supported workflow,
+See the [v0.2.0 developer-preview notes](docs/releases/v0.2.0.md) for the supported workflow,
 limitations, upgrade, and uninstall instructions.
 
 ## Commands
@@ -131,7 +131,7 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 - [Package Reference](docs/architecture/PACKAGE_REFERENCE.md)
 - [Validation and Security](docs/architecture/VALIDATION_AND_SECURITY.md)
 - [Decision Records](docs/decisions)
-- [Release Notes](docs/releases/v0.1.0.md)
+- [Release Notes](docs/releases/v0.2.0.md)
 
 ## Development Workflow
 
@@ -144,8 +144,9 @@ Execution policy is configured in `.repopilot/config.yaml`. Built-in safe defaul
 
 ## Security Boundaries
 
-RepoPilot does not add telemetry, make cloud AI calls, or authenticate with GitHub in this milestone.
-Ollama uses a configured loopback endpoint. Source context is read by a separate broker process and
-is capped before being sent to Ollama. The executor accepts only code-owned commands, uses no shell,
+RepoPilot does not add telemetry or authenticate with GitHub. Ollama uses a configured loopback
+endpoint; choosing Codex sends bounded planning evidence or source context through the authenticated
+Codex CLI to OpenAI. Source context is read by a separate broker process and capped before either
+provider receives it. The executor accepts only code-owned commands, uses no shell,
 and receives an explicit environment allowlist. Validation may execute target tool configuration and
 scripts after `--execute-checks`; it is not an OS-level container or remote sandbox.

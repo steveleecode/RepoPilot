@@ -11,6 +11,10 @@
     "./ollama": {
       "types": "./dist/ollama.d.ts",
       "import": "./dist/ollama.js"
+    },
+    "./codex-app-server": {
+      "types": "./dist/codex-app-server.d.ts",
+      "import": "./dist/codex-app-server.js"
     }
   },
   "scripts": {

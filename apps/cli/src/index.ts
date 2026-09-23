@@ -31,6 +31,7 @@ import {
   type ProviderDefinition,
   type ProviderInspection
 } from "@repopilot/provider";
+import { CodexAppServerTransport } from "@repopilot/provider/codex-app-server";
 import {
   loadModelConfig,
   modelConfigPath,
@@ -79,6 +80,8 @@ Usage:
   repopilot init [--repo path] [--json]
   repopilot scan [--repo path] [--json]
   repopilot providers <list|doctor> [--repo path] [--json]
+  repopilot providers codex login [--device-code]
+  repopilot providers codex status
   repopilot providers configure ollama --model name [--endpoint url] [--repo path]
   repopilot validate [--repo path] [--json]
   repopilot runs create <objective> [--provider name] [--repo path] [--json]
@@ -110,7 +113,7 @@ Commands:
   resume    Move an interrupted or failed run back to planning.
   policy    Show, validate, initialize, or update execution policy.
   run       Preview policy or execute a provider-backed read-only workflow.
-  propose   Ask Ollama for bounded, reviewable changes to a planned task.
+  propose   Ask Ollama or Codex for bounded, reviewable changes to a planned task.
   repair    Propose a bounded repair after failed validation.
   apply     Apply a validated proposal to an isolated Git worktree.
   verify    Execute trusted validation checks in the applied worktree.
@@ -195,8 +198,9 @@ async function handleDevelopmentCommand(
   const runId = positionals[0];
   let result: unknown;
   if (command === "propose" || command === "repair") {
-    const config = await loadModelConfig(repositoryRoot);
-    if (!config?.ollama)
+    const run = await store.loadRun(runId);
+    const config = run.provider === "ollama" ? await loadModelConfig(repositoryRoot) : undefined;
+    if (run.provider === "ollama" && !config?.ollama)
       throw new Error("Ollama is not configured. Run providers configure ollama.");
     const taskId = stringOption(values.task, "--task");
     const policy = resolvePolicy({
@@ -205,7 +209,7 @@ async function handleDevelopmentCommand(
     result = await proposeChanges({
       store,
       runId,
-      ollama: config.ollama,
+      ...(config?.ollama ? { ollama: config.ollama } : {}),
       policy,
       repair: command === "repair",
       ...(taskId ? { taskId } : {}),
@@ -374,10 +378,38 @@ async function handleProvidersCommand(
     options: {
       ...commonOptions(),
       model: { type: "string" },
-      endpoint: { type: "string" }
+      endpoint: { type: "string" },
+      "device-code": { type: "boolean" }
     }
   });
   if (values.help) return textResult(helpText);
+  if (subcommand === "codex") {
+    if (positionals.length !== 1 || !["login", "status"].includes(positionals[0] ?? ""))
+      throw new CliUsageError("Usage: repopilot providers codex <login|status>");
+    if (values.json && positionals[0] === "login")
+      throw new CliUsageError("Interactive Codex login does not support --json.");
+    const action = positionals[0] as "login" | "status";
+    const result = spawnSync(
+      "codex",
+      action === "login"
+        ? ["login", ...(values["device-code"] ? ["--device-auth"] : [])]
+        : ["login", "status"],
+      {
+        encoding: "utf8",
+        stdio: action === "login" ? "inherit" : "pipe",
+        timeout: action === "login" ? 300_000 : 10_000
+      }
+    );
+    if (result.error || result.status !== 0)
+      throw new Error(
+        action === "login"
+          ? "Codex login failed or timed out."
+          : "Codex is not signed in. Run repopilot providers codex login."
+      );
+    return textResult(
+      action === "login" ? "Codex login completed." : result.stdout?.trim() || "Codex is signed in."
+    );
+  }
   if (subcommand !== "configure")
     requireNoPositionals(positionals, "repopilot providers <list|doctor|configure> [--json]");
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
@@ -422,7 +454,9 @@ async function configuredProviders(
   const providers = new ProviderRegistry([new FakeAgentProvider()]);
   const config = await loadModelConfig(repositoryRoot);
   if (config?.ollama) providers.register(new OllamaAgentProvider(config.ollama, runtime.fetcher));
-  if (runtime.codexTransport) providers.register(new CodexAgentProvider(runtime.codexTransport));
+  providers.register(
+    new CodexAgentProvider(runtime.codexTransport ?? new CodexAppServerTransport())
+  );
   return providers;
 }
 

@@ -77,6 +77,68 @@ describe("change context broker", () => {
       generateChangeProposal({ ...request(root), files: ["src/linked.txt"] }, fetcher)
     ).resolves.toBeTruthy();
   });
+
+  it("uses the same bounded context and evidence checks for Codex", async () => {
+    const root = await fixture();
+    let prompt = "";
+    const result = (await generateChangeProposal(
+      { ...request(root), ollama: undefined, codex: true },
+      () => Promise.reject(new Error("Ollama must not be called")),
+      (input) => {
+        prompt = input;
+        return Promise.resolve({
+          summary: "Update greeting",
+          changes: [
+            {
+              action: "modify",
+              path: "src/greeting.txt",
+              content: "goodbye\n",
+              evidencePaths: ["src/greeting.txt"]
+            }
+          ]
+        });
+      }
+    )) as { changes: { baseHash: string }[] };
+    expect(prompt).toContain("hello");
+    expect(prompt).not.toContain("hidden-secret");
+    expect(result.changes[0]?.baseHash).toMatch(/^[a-f0-9]{64}$/u);
+  });
+
+  it("rejects out-of-scope Codex changes", async () => {
+    const root = await fixture();
+    await expect(
+      generateChangeProposal({ ...request(root), ollama: undefined, codex: true }, fetch, () =>
+        Promise.resolve({
+          summary: "Bad change",
+          changes: [
+            {
+              action: "create",
+              path: "../outside",
+              content: "bad",
+              evidencePaths: ["src/greeting.txt"]
+            }
+          ]
+        })
+      )
+    ).rejects.toThrow("Context path is invalid.");
+  });
+
+  it("permits an evidence-free create when the planned scope is empty", async () => {
+    const root = path.join(tmpdir(), `repopilot-empty-${crypto.randomUUID()}`);
+    await mkdir(root);
+    const result = (await generateChangeProposal(
+      { ...request(root), ollama: undefined, codex: true },
+      fetch,
+      () =>
+        Promise.resolve({
+          summary: "Create greeting",
+          changes: [
+            { action: "create", path: "src/new.txt", content: "hello\n", evidencePaths: [] }
+          ]
+        })
+    )) as { changes: { baseHash: string | null }[] };
+    expect(result.changes[0]?.baseHash).toBeNull();
+  });
 });
 
 function request(repositoryRoot: string) {

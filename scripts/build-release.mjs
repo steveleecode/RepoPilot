@@ -98,6 +98,11 @@ try {
   );
   if (smoke.ok !== true || smoke.run?.status !== "completed")
     throw new Error("Packaged CLI workflow smoke test failed.");
+  const providers = JSON.parse(
+    run(process.execPath, [executable, "providers", "list", "--repo", fixture, "--json"], root)
+  );
+  if (!providers.providers?.some((provider) => provider.id === "codex"))
+    throw new Error("Packaged CLI is missing the Codex provider.");
   const digest = createHash("sha256")
     .update(await readFile(archive))
     .digest("hex");

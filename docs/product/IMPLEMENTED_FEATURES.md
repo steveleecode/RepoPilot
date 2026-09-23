@@ -179,13 +179,11 @@ The repository includes Vitest unit tests for analyzer, validator, instruction-l
 RepoPilot still does not implement:
 
 - Additional language ecosystems beyond the currently supported manifest and tool families.
-- Directly configured Codex SDK or App Server transport in the CLI.
 - OS-level container or remote execution sandboxing.
 - Interactive approval, cancel, and cleanup operations for development worktrees.
 - Arbitrary language/tool validation catalogs beyond the current Node/pnpm checks.
 - Automatic commit, push, or pull-request execution.
 - GitHub authentication.
-- Cloud AI calls.
 - Telemetry.
 - Hosted execution.
 - Pull-request merging.

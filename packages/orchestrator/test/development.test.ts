@@ -51,6 +51,35 @@ describe("development workflow", () => {
     ).toThrow("base hash");
   });
 
+  it("allows a new file without source evidence but requires evidence for edits", () => {
+    const created = {
+      summary: "Create a file",
+      taskId: "greeting",
+      contextManifest: [],
+      changes: [
+        {
+          action: "create",
+          path: "src/new.txt",
+          content: "hello\n",
+          evidencePaths: [],
+          taskId: "greeting",
+          baseHash: null
+        }
+      ],
+      commandIntents: []
+    };
+    expect(validateChangeProposal(created, plan).changes).toHaveLength(1);
+    expect(() =>
+      validateChangeProposal(
+        {
+          ...proposal("a".repeat(64)),
+          changes: [{ ...proposal("a".repeat(64)).changes[0], evidencePaths: [] }]
+        },
+        plan
+      )
+    ).toThrow("source evidence");
+  });
+
   it("applies only in a worktree and validates with the trusted diff check", async () => {
     const root = await fixture();
     const store = new WorkflowStore(root);

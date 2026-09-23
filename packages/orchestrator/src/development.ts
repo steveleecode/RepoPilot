@@ -32,7 +32,7 @@ const changeSchema = z.strictObject({
   action: z.enum(["create", "modify", "delete"]),
   path: relativePath,
   content: z.string().max(100_000).optional(),
-  evidencePaths: z.array(relativePath).min(1).max(20),
+  evidencePaths: z.array(relativePath).max(20),
   taskId: z.string().min(1),
   baseHash: z
     .string()
@@ -100,6 +100,8 @@ export function validateChangeProposal(raw: unknown, plan: PlanningIntent): Chan
       throw new Error("Change content does not match action.");
     if (change.evidencePaths.some((item) => !evidence.has(item)))
       throw new Error("Proposal cites unknown evidence.");
+    if (change.action !== "create" && change.evidencePaths.length === 0)
+      throw new Error("Existing-file changes require source evidence.");
   }
   if (proposal.commandIntents.length !== 0)
     throw new Error("Model command intents are not authorized in this milestone.");
@@ -113,7 +115,7 @@ function artifactOf(run: RunSnapshot, type: string) {
 export async function proposeChanges(input: {
   store: WorkflowStore;
   runId: string;
-  ollama: OllamaConfig;
+  ollama?: OllamaConfig;
   taskId?: string;
   files?: string[];
   policy?: ExecutionPolicy;
@@ -122,8 +124,9 @@ export async function proposeChanges(input: {
   const run = await input.store.loadRun(input.runId);
   if (run.status !== "completed")
     throw new Error("Planning run must complete before proposing changes.");
-  if (run.provider !== "ollama")
-    throw new Error("Change generation currently requires the Ollama provider.");
+  if (run.provider !== "ollama" && run.provider !== "codex")
+    throw new Error("Change generation requires Ollama or Codex.");
+  if (run.provider === "ollama" && !input.ollama) throw new Error("Ollama is not configured.");
   const previousProposal = artifactOf(run, "change-proposal");
   let contextRoot = run.repositoryRoot;
   let objective = run.objective;
@@ -191,7 +194,7 @@ export async function proposeChanges(input: {
     readSet: task.readSet,
     writeSet: task.writeSet,
     files: input.files ?? [],
-    ollama: input.ollama
+    ...(run.provider === "codex" ? { codex: true } : { ollama: input.ollama })
   };
   const bundledBroker = new URL("./change-broker.mjs", import.meta.url);
   const broker = existsSync(fileURLToPath(bundledBroker))
@@ -202,7 +205,7 @@ export async function proposeChanges(input: {
     [fileURLToPath(broker)],
     run.repositoryRoot,
     JSON.stringify(payload),
-    input.ollama.timeoutMs + 5_000
+    (input.ollama?.timeoutMs ?? 180_000) + 5_000
   );
   const proposal = validateChangeProposal(raw, plan);
   await input.store.recordArtifact(run.id, {

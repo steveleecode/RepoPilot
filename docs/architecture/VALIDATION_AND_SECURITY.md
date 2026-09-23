@@ -12,7 +12,9 @@ RepoPilot currently follows these boundaries:
 - Do not collect environment variables.
 - Do not print secrets.
 - Do not add telemetry.
-- Do not make cloud AI calls. Local Ollama calls require explicit configuration.
+- Do not make implicit cloud AI calls. Local Ollama requires configuration; Codex requires explicit
+  provider selection and a separate Codex CLI sign-in. Codex-managed credentials stay outside
+  RepoPilot's repository config and release archive.
 - Do not authenticate with GitHub.
 - Do not merge pull requests.
 

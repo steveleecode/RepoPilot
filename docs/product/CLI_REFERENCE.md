@@ -73,11 +73,15 @@ It does not execute target-repository scripts or load target source code into Re
 repopilot providers list
 repopilot providers list --json
 repopilot providers doctor
+repopilot providers codex login
+repopilot providers codex login --device-code
+repopilot providers codex status
 ```
 
 Lists provider adapters, integration status, and supported capabilities. The deterministic fake
 provider is built in for contract and workflow tests. `providers doctor` checks a configured Ollama
-model. The Codex adapter accepts an injected transport; the standalone CLI does not yet configure one.
+model and the local Codex App Server. Codex uses the Codex CLI's existing login; RepoPilot does not
+read or store its credentials. The standalone CLI uses a local App Server transport by default.
 
 ## Validate
 
@@ -234,5 +238,5 @@ dependencies in the returned worktree before `verify` (for example, `pnpm instal
 --ignore-scripts`). This is a user-run step: RepoPilot does not automatically execute a target
 repository's installation scripts.
 
-The standalone CLI currently generates change proposals with Ollama only. Codex remains an injected
-planning adapter; live standalone Codex transport is scheduled for Phase 13.
+The standalone CLI generates change proposals with either configured Ollama or authenticated Codex.
+Both paths use the same bounded context broker, proposal validator, and isolated-worktree apply flow.
