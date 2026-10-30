@@ -4,6 +4,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { createInterface } from "node:readline/promises";
 import { analyzeRepository, type RepositoryAnalysis } from "@repopilot/analyzer";
 import {
   applyChanges,
@@ -40,6 +41,23 @@ import {
 } from "@repopilot/provider/ollama";
 import type { CodexTransport } from "@repopilot/provider";
 import { WorkflowStore, type RunSnapshot } from "@repopilot/workflow";
+import {
+  codexAgentRoles,
+  featurePrompt,
+  generateCodexSetup,
+  promptCodexSetup,
+  selectedAgentIds
+} from "./codex-setup.js";
+import { tailorCodexAgents } from "./codex-tailoring.js";
+import { generateGithubReinforcement } from "./github-setup.js";
+import { defaultGeminiModel, runInteractiveGeminiChat } from "./gemini-chat.js";
+import {
+  loadGeminiKey,
+  prepareGeminiEnv,
+  promptGeminiKey,
+  readKeyFromStdin,
+  saveGeminiKey
+} from "./gemini-config.js";
 
 export const cliExitCode = {
   success: 0,
@@ -71,10 +89,68 @@ export interface DoctorReport {
 const cliVersion = readCliVersion();
 const supportedNodeRange = ">=22 <26";
 
+const overviewText = `RepoPilot ${cliVersion}
+
+Start with a repository:
+  repopilot setup --repo <path>            Configure policy, agents, and optional Gemini chat
+  repopilot doctor --repo <path>           Check local requirements
+  repopilot scan --repo <path>             See evidence-backed repository facts
+
+Work on a task:
+  repopilot codex prompt "<task>"          Generate a multi-agent launch prompt
+  repopilot plan "<task>" --provider codex  Create a read-only plan
+  repopilot propose <run-id>               Generate reviewable changes
+  repopilot inspect <run-id>               Review the plan and proposed changes
+  repopilot apply <run-id> --approve        Apply to an isolated worktree
+  repopilot verify <run-id> --execute-checks  Run trusted checks in that worktree
+
+Other paths:
+  repopilot chat                          Gemini advice (read-only)
+  repopilot providers doctor              Check Codex and Ollama integrations
+  repopilot help <setup|workflow|providers|policy>  Show a focused guide
+  repopilot --help                        Show every command and option
+
+Commands use the current directory unless --repo <path> is given. No command silently pushes, merges, or deploys.`;
+
+const helpTopics: Record<string, string> = {
+  setup: `Setup
+  repopilot setup --repo <path>             Guided setup in a terminal
+  repopilot codex setup --repo <path>       Select agents without full setup
+  repopilot config gemini --repo <path>     Add or rotate a local Gemini key
+  repopilot config status --repo <path>     Show setup status without secrets
+
+Setup preserves existing files. Gemini tailoring is opt-in. For scripted setup, use --agents id,id and --description text; --ai --yes accepts validated AI focus.`,
+  workflow: `Workflow
+  repopilot plan "<task>" --provider codex --repo <path>
+  repopilot propose <run-id> --repo <path>
+  repopilot inspect <run-id> --repo <path>
+  repopilot apply <run-id> --approve --repo <path>
+  repopilot verify <run-id> --execute-checks --repo <path>
+
+Planning is read-only. Inspect before apply. Apply writes only to an isolated worktree; verify may execute target-project scripts and should be used only for trusted projects.`,
+  providers: `Providers
+  repopilot providers list
+  repopilot providers doctor --repo <path>
+  repopilot providers codex login
+  repopilot providers codex status
+  repopilot providers configure ollama --model <installed-model> --repo <path>
+
+Codex uses its own login. Ollama requires a locally running server and installed model. Gemini chat uses a local .repopilot/.env key.`,
+  policy: `Policy
+  repopilot policy show --repo <path>
+  repopilot policy validate --repo <path>
+  repopilot policy set <path> <value> --repo <path>
+  repopilot run --repo <path>               Preview effective policy
+
+Repository policy controls Git actions and validation gates. Setup never authorizes a push or pull request by itself.`
+};
+
 const helpText = `RepoPilot
 
 Usage:
   repopilot --help
+  repopilot help [setup|workflow|providers|policy]
+  repopilot setup [--repo path] [--agents id,id] [--description text] [--ai] [--yes]
   repopilot version [--json]
   repopilot doctor [--repo path] [--json]
   repopilot init [--repo path] [--json]
@@ -82,6 +158,11 @@ Usage:
   repopilot providers <list|doctor> [--repo path] [--json]
   repopilot providers codex login [--device-code]
   repopilot providers codex status
+  repopilot codex setup [--repo path] [--agents id,id] [--description text] [--ai] [--yes] [--json]
+  repopilot codex prompt <feature or bug> [--repo path]
+  repopilot config <setup|gemini|status> [--repo path]
+  repopilot config gemini --stdin [--repo path]
+  repopilot chat [--repo path] [--model name] [--no-context]
   repopilot providers configure ollama --model name [--endpoint url] [--repo path]
   repopilot validate [--repo path] [--json]
   repopilot runs create <objective> [--provider name] [--repo path] [--json]
@@ -95,6 +176,7 @@ Usage:
   repopilot run [--repo path] [--json] [--non-interactive]
                 [--parallel] [--max-workers n] [--auto-commit] [--no-push]
   repopilot run <objective> --provider <fake|ollama|codex> [--repo path] [--json]
+  repopilot plan <objective> --provider <fake|ollama|codex> [--repo path] [--json]
   repopilot propose <run-id> [--task id] [--file path] [--repo path] [--json]
   repopilot repair <run-id> [--file path] [--repo path] [--json]
   repopilot apply <run-id> [--approve] [--repo path] [--json]
@@ -102,11 +184,16 @@ Usage:
   repopilot inspect <run-id> [--repo path] [--json]
 
 Commands:
+  setup     Guided project setup (alias for config setup).
+  plan      Create a provider-backed read-only plan (alias for run <objective>).
   version   Print the RepoPilot CLI version.
   doctor    Inspect the local RepoPilot environment.
   init      Initialize repository policy using the balanced preset.
   scan      Analyze repository metadata and print evidence-backed facts.
   providers Discover available agent-provider adapters and capabilities.
+  codex     Generate multi-agent configuration or a task-specific launch prompt.
+  config    Set up project configuration, GitHub CI when detected, and a local Gemini key.
+  chat      Start a read-only, streaming Gemini advice session.
   validate  Validate the repository policy configuration.
   runs      Create and list durable workflow runs.
   status    Show a reconstructed workflow run snapshot.
@@ -140,12 +227,29 @@ export async function runCli(
   const wantsJson = args.includes("--json");
 
   try {
-    if (!command || command === "--help" || command === "-h") return textResult(helpText);
+    if (!command) return textResult(overviewText);
+    if (command === "--help" || command === "-h") return textResult(helpText);
+    if (command === "help") {
+      if (commandArgs.length > 1)
+        throw new CliUsageError("Usage: repopilot help [setup|workflow|providers|policy]");
+      const topic = commandArgs[0];
+      if (!topic) return textResult(overviewText);
+      if (!helpTopics[topic])
+        throw new CliUsageError(
+          `Unknown help topic: ${topic}. Choose setup, workflow, providers, or policy.`
+        );
+      return textResult(helpTopics[topic]);
+    }
+    if (command === "setup")
+      return await handleConfigCommand(["setup", ...commandArgs], cwd, runtime);
     if (command === "version") return handleVersionCommand(commandArgs);
     if (command === "doctor") return handleDoctorCommand(commandArgs, cwd);
     if (command === "init") return await handlePolicyCommand(["init", ...commandArgs], cwd);
     if (command === "scan") return await handleScanCommand(commandArgs, cwd);
     if (command === "providers") return await handleProvidersCommand(commandArgs, cwd, runtime);
+    if (command === "codex") return await handleCodexCommand(commandArgs, cwd, runtime);
+    if (command === "config") return await handleConfigCommand(commandArgs, cwd, runtime);
+    if (command === "chat") return await handleChatCommand(commandArgs, cwd, runtime);
     if (command === "validate") {
       return await handlePolicyCommand(["validate", ...commandArgs], cwd);
     }
@@ -154,6 +258,7 @@ export async function runCli(
     if (command === "status") return await handleStatusCommand(commandArgs, cwd);
     if (command === "resume") return await handleResumeCommand(commandArgs, cwd);
     if (command === "run") return await handleRunCommand(commandArgs, cwd, runtime);
+    if (command === "plan") return await handleRunCommand(commandArgs, cwd, runtime, true);
     if (
       command === "propose" ||
       command === "repair" ||
@@ -171,6 +276,260 @@ export async function runCli(
       ? jsonResult(exitCode, { ok: false, error: { message, exitCode } })
       : textResult(`Error: ${message}\n\nRun repopilot --help for usage.`, exitCode);
   }
+}
+
+interface CodexSetupFlags {
+  agents: string | undefined;
+  description: string | undefined;
+  ai: boolean;
+  yes: boolean;
+  interactive: boolean;
+}
+
+async function runCodexSetup(
+  repositoryRoot: string,
+  flags: CodexSetupFlags,
+  runtime: CliProviderRuntime
+) {
+  if (flags.yes && !flags.ai) throw new CliUsageError("--yes requires --ai.");
+  let agents =
+    flags.agents === undefined
+      ? selectedAgentIds()
+      : selectedAgentIds(
+          flags.agents === "none"
+            ? []
+            : flags.agents
+                .split(",")
+                .map((id) => id.trim())
+                .filter(Boolean)
+        );
+  let description = flags.description ?? "";
+  let useGemini = flags.ai;
+  const guided =
+    flags.interactive && flags.agents === undefined && flags.description === undefined && !flags.ai;
+  if (guided) {
+    const geminiAvailable = Boolean(
+      process.env.GEMINI_API_KEY || (await loadGeminiKey(repositoryRoot))
+    );
+    const choices = await promptCodexSetup(process.stdin, process.stdout, geminiAvailable);
+    agents = choices.agents;
+    description = choices.description;
+    useGemini = choices.useGemini;
+  }
+  if (description.length > 2_000)
+    throw new CliUsageError("Project description must be 2,000 characters or less.");
+  let focus: Record<string, string> | undefined;
+  if (useGemini) {
+    if (!flags.interactive && !flags.yes)
+      throw new CliUsageError("Non-interactive AI tailoring requires --ai --yes.");
+    const key = process.env.GEMINI_API_KEY || (await loadGeminiKey(repositoryRoot)) || "";
+    focus = await tailorCodexAgents({
+      apiKey: key,
+      agents,
+      description,
+      ...(runtime.fetcher ? { fetcher: runtime.fetcher } : {})
+    });
+    if (flags.interactive && !flags.yes) {
+      process.stdout.write("\nGemini-proposed focus (base rules remain unchanged):\n");
+      for (const [id, value] of Object.entries(focus)) process.stdout.write(`  ${id}: ${value}\n`);
+      const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+      try {
+        const answer = await rl.question("Accept these additions? [y/N]: ");
+        if (!/^y(?:es)?$/i.test(answer.trim())) focus = undefined;
+      } finally {
+        rl.close();
+      }
+    }
+  }
+  const result = await generateCodexSetup(repositoryRoot, { agents, ...(focus ? { focus } : {}) });
+  return { ...result, agents, aiTailored: Boolean(focus) };
+}
+
+async function handleConfigCommand(
+  args: string[],
+  cwd: string,
+  runtime: CliProviderRuntime
+): Promise<CliResult> {
+  const subcommand = args[0];
+  const { values, positionals } = parseArgs({
+    args: args.slice(1),
+    allowPositionals: true,
+    strict: true,
+    options: {
+      ...commonOptions(),
+      stdin: { type: "boolean" },
+      "skip-gemini": { type: "boolean" },
+      agents: { type: "string" },
+      description: { type: "string" },
+      ai: { type: "boolean" },
+      yes: { type: "boolean" }
+    }
+  });
+  if (values.help) return textResult(helpText);
+  requireNoPositionals(positionals, "repopilot config <setup|gemini|status> [--repo path]");
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
+  if (subcommand === "status") {
+    if (
+      values.stdin ||
+      values["skip-gemini"] ||
+      values.agents ||
+      values.description ||
+      values.ai ||
+      values.yes
+    )
+      throw new CliUsageError("--stdin and --skip-gemini are not valid with config status.");
+    const report = {
+      policyConfigured: existsSync(path.join(repositoryRoot, repoPilotConfigPath)),
+      codexConfigured: existsSync(path.join(repositoryRoot, ".codex/config.toml")),
+      geminiConfigured: Boolean(await loadGeminiKey(repositoryRoot))
+    };
+    return values.json
+      ? jsonResult(cliExitCode.success, { ok: true, command: "config status", ...report })
+      : textResult(
+          `RepoPilot configuration\nPolicy: ${report.policyConfigured ? "configured" : "missing"}\nCodex agents: ${report.codexConfigured ? "configured" : "missing"}\nGemini key: ${report.geminiConfigured ? "configured" : "missing"}`
+        );
+  }
+  if (values.json) throw new CliUsageError("Interactive configuration does not support --json.");
+  if (subcommand === "gemini") {
+    if (values["skip-gemini"] || values.agents || values.description || values.ai || values.yes)
+      throw new CliUsageError("--skip-gemini is only valid with config setup.");
+    const key = values.stdin
+      ? await readKeyFromStdin(process.stdin)
+      : await promptGeminiKey(process.stdin, process.stdout);
+    if (!key) return textResult("Gemini key unchanged.");
+    await saveGeminiKey(repositoryRoot, key);
+    return textResult("Gemini key saved to .repopilot/.env (value hidden).");
+  }
+  if (subcommand === "setup") {
+    if (values.stdin) throw new CliUsageError("--stdin is only valid with config gemini.");
+    await prepareGeminiEnv(repositoryRoot);
+    const policyCreated = !existsSync(path.join(repositoryRoot, repoPilotConfigPath));
+    if (policyCreated) await writeRepositoryConfig(repositoryRoot, defaultConfig("balanced"));
+    let geminiConfigured = Boolean(await loadGeminiKey(repositoryRoot));
+    if (
+      !geminiConfigured &&
+      !values["skip-gemini"] &&
+      process.stdin.isTTY &&
+      process.stdout.isTTY
+    ) {
+      const key = await promptGeminiKey(process.stdin, process.stdout);
+      if (key) {
+        await saveGeminiKey(repositoryRoot, key);
+        geminiConfigured = true;
+      }
+    }
+    const codex = await runCodexSetup(
+      repositoryRoot,
+      {
+        agents: stringOption(values.agents, "--agents"),
+        description: stringOption(values.description, "--description"),
+        ai: Boolean(values.ai),
+        yes: Boolean(values.yes),
+        interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY)
+      },
+      runtime
+    );
+    const github = await generateGithubReinforcement(repositoryRoot);
+    return textResult(
+      `RepoPilot setup complete.\nPolicy: ${policyCreated ? "created" : "existing"}\nCodex files created: ${codex.created.join(", ") || "none"}\nCodex files skipped: ${codex.skipped.join(", ") || "none"}\nExisting unselected agents left untouched: ${codex.existingUnselected.join(", ") || "none"}\nGitHub: ${github.detected ? "detected" : "not detected"}\nCI files created: ${github.created.join(", ") || "none"}\nCI files skipped: ${github.skipped.join(", ") || "none"}\n${github.guidance.join("\n")}${github.guidance.length ? "\n" : ""}Gemini key: ${geminiConfigured ? "configured" : "not configured; run repopilot config gemini"}`
+    );
+  }
+  throw new CliUsageError("Usage: repopilot config <setup|gemini|status> [--repo path]");
+}
+
+async function handleChatCommand(
+  args: string[],
+  cwd: string,
+  runtime: CliProviderRuntime
+): Promise<CliResult> {
+  const { values, positionals } = parseArgs({
+    args,
+    allowPositionals: true,
+    strict: true,
+    options: {
+      ...commonOptions(),
+      model: { type: "string" },
+      "no-context": { type: "boolean" }
+    }
+  });
+  if (values.help) return textResult(helpText);
+  requireNoPositionals(positionals, "repopilot chat [--repo path] [--model name] [--no-context]");
+  if (values.json) throw new CliUsageError("Interactive chat does not support --json.");
+  if (!process.stdin.isTTY) throw new CliUsageError("Interactive chat requires a terminal.");
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
+  await runInteractiveGeminiChat({
+    repositoryRoot,
+    apiKey: process.env.GEMINI_API_KEY || (await loadGeminiKey(repositoryRoot)) || "",
+    model: stringOption(values.model, "--model") ?? defaultGeminiModel,
+    includeContext: !values["no-context"],
+    input: process.stdin,
+    output: process.stdout,
+    ...(runtime.fetcher ? { fetcher: runtime.fetcher } : {}),
+    animate: Boolean(process.stdout.isTTY)
+  });
+  return textResult("Chat ended.");
+}
+
+async function handleCodexCommand(
+  args: string[],
+  cwd: string,
+  runtime: CliProviderRuntime
+): Promise<CliResult> {
+  const subcommand = args[0];
+  const { values, positionals } = parseArgs({
+    args: args.slice(1),
+    allowPositionals: true,
+    strict: true,
+    options: {
+      ...commonOptions(),
+      agents: { type: "string" },
+      description: { type: "string" },
+      ai: { type: "boolean" },
+      yes: { type: "boolean" }
+    }
+  });
+  if (values.help) return textResult(helpText);
+  if (subcommand === "prompt") {
+    if (values.agents || values.description || values.ai || values.yes)
+      throw new CliUsageError("Agent setup options are not valid with codex prompt.");
+    if (positionals.length !== 1 || !positionals[0])
+      throw new CliUsageError("Usage: repopilot codex prompt <feature or bug> [--repo path]");
+    const prompt = featurePrompt(positionals[0]);
+    return values.json
+      ? jsonResult(cliExitCode.success, { ok: true, command: "codex prompt", prompt })
+      : textResult(prompt);
+  }
+  if (subcommand !== "setup" || positionals.length !== 0)
+    throw new CliUsageError("Usage: repopilot codex <setup|prompt> [--repo path] [--json]");
+  const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
+  const result = await runCodexSetup(
+    repositoryRoot,
+    {
+      agents: stringOption(values.agents, "--agents"),
+      description: stringOption(values.description, "--description"),
+      ai: Boolean(values.ai),
+      yes: Boolean(values.yes),
+      interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY && !values.json)
+    },
+    runtime
+  );
+  const github = await generateGithubReinforcement(repositoryRoot);
+  return values.json
+    ? jsonResult(cliExitCode.success, {
+        ok: true,
+        command: "codex setup",
+        repositoryRoot,
+        ...result,
+        availableAgents: codexAgentRoles.map(({ id, label, default: defaultSelected }) => ({
+          id,
+          label,
+          defaultSelected
+        })),
+        github
+      })
+    : textResult(
+        `Codex multi-agent setup generated; no agents were run.\nSelected agents: ${result.agents.join(", ") || "none"}\nGemini tailored: ${result.aiTailored ? "yes" : "no"}\nCreated: ${result.created.join(", ") || "none"}\nSkipped existing: ${result.skipped.join(", ") || "none"}\nExisting unselected agents left untouched: ${result.existingUnselected.join(", ") || "none"}\nGitHub: ${github.detected ? "detected" : "not detected"}\nCI files created: ${github.created.join(", ") || "none"}\n${github.guidance.join("\n")}`
+      );
 }
 
 async function handleDevelopmentCommand(
@@ -557,7 +916,8 @@ async function handlePolicyCommand(args: string[], cwd: string): Promise<CliResu
 async function handleRunCommand(
   args: string[],
   cwd: string,
-  runtime: CliProviderRuntime
+  runtime: CliProviderRuntime,
+  requireObjective = false
 ): Promise<CliResult> {
   const { values, positionals } = parseArgs({
     args,
@@ -574,6 +934,10 @@ async function handleRunCommand(
     }
   });
   if (values.help) return textResult(helpText);
+  if (requireObjective && positionals.length === 0)
+    throw new CliUsageError(
+      "Usage: repopilot plan <objective> --provider <codex|ollama|fake> [--repo path]"
+    );
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
   const repositoryConfig = await loadRepositoryConfig(repositoryRoot);
   const cliOverrides = parseRunOverrides(values);

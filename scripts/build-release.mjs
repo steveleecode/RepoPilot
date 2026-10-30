@@ -103,6 +103,45 @@ try {
   );
   if (!providers.providers?.some((provider) => provider.id === "codex"))
     throw new Error("Packaged CLI is missing the Codex provider.");
+  const project = path.join(temporary, "sample-project");
+  await mkdir(project);
+  run("git", ["init", "-q"], project);
+  run("git", ["remote", "add", "origin", "git@github.com:example/sample-project.git"], project);
+  await writeFile(
+    path.join(project, "package.json"),
+    JSON.stringify({
+      name: "sample-project",
+      version: "1.0.0",
+      scripts: { check: "echo checked" }
+    }) + "\n"
+  );
+  await writeFile(
+    path.join(project, "package-lock.json"),
+    JSON.stringify({
+      name: "sample-project",
+      version: "1.0.0",
+      lockfileVersion: 3,
+      packages: { "": { name: "sample-project", version: "1.0.0" } }
+    }) + "\n"
+  );
+  const setup = run(
+    process.execPath,
+    [executable, "setup", "--repo", project, "--skip-gemini"],
+    root
+  );
+  if (!setup.includes("RepoPilot setup complete"))
+    throw new Error("Packaged CLI setup smoke test failed.");
+  const status = JSON.parse(
+    run(process.execPath, [executable, "config", "status", "--repo", project, "--json"], root)
+  );
+  if (!status.policyConfigured || !status.codexConfigured || status.geminiConfigured)
+    throw new Error("Packaged CLI setup status smoke test failed.");
+  const workflow = await readFile(path.join(project, ".github/workflows/repopilot-ci.yml"), "utf8");
+  if (!workflow.includes("npm run check"))
+    throw new Error("Packaged CLI GitHub CI setup smoke test failed.");
+  const prompt = run(process.execPath, [executable, "codex", "prompt", "Add a filter"], root);
+  if (!prompt.includes("Task: Add a filter"))
+    throw new Error("Packaged CLI feature prompt smoke test failed.");
   const digest = createHash("sha256")
     .update(await readFile(archive))
     .digest("hex");
