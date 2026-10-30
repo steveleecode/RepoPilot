@@ -64,8 +64,10 @@ function assertUntracked(repositoryRoot: string): void {
 
 function validateKey(key: string): string {
   const trimmed = key.trim();
-  if (!/^[A-Za-z0-9_-]{16,512}$/.test(trimmed))
-    throw new Error("Gemini API key must be a single 16–512 character token.");
+  if (!/^[A-Za-z0-9_.-]{16,512}$/.test(trimmed))
+    throw new Error(
+      "Gemini API key must be a single 16–512 character token (letters, numbers, _, -, or .)."
+    );
   return trimmed;
 }
 
