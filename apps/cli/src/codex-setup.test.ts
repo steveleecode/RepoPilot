@@ -1,8 +1,26 @@
 import { PassThrough } from "node:stream";
+import { mkdir, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { promptCodexSetup } from "./codex-setup.js";
+import { featurePrompt, generateCodexSetup, promptCodexSetup } from "./codex-setup.js";
 
 describe("Codex setup wizard", () => {
+  it("gives specialists a question path through the orchestrator", async () => {
+    const root = path.join(tmpdir(), `repopilot-questions-${crypto.randomUUID()}`);
+    await mkdir(root);
+    await generateCodexSetup(root, { agents: ["researcher", "developer", "reviewer"] });
+    for (const id of ["researcher", "developer", "reviewer"]) {
+      const toml = await readFile(path.join(root, `.codex/agents/${id}.toml`), "utf8");
+      expect(toml).toContain("send the main Codex agent one concise question");
+      expect(toml).toContain("Continue safe independent work while waiting");
+    }
+    const guide = await readFile(path.join(root, "AGENTS.md"), "utf8");
+    expect(guide).toContain("Ask the user a concise question");
+    expect(guide).toContain("Never treat silence as approval");
+    expect(featurePrompt("Add a filter")).toContain("Have specialists route questions through you");
+  });
+
   it("lets users deselect defaults, add optional agents, and skip AI context", async () => {
     const input = new PassThrough();
     const output = new PassThrough();

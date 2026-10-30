@@ -23,6 +23,8 @@ enabled = true
 max_concurrent_threads_per_session = 3
 `;
 
+const specialistQuestionProtocol = `If a missing requirement, conflicting evidence, or required authorization would materially change your work, send the main Codex agent one concise question with the decision needed, relevant evidence, and a recommended option. Continue safe independent work while waiting. Do not invent an answer or seek approval directly from the user; the main agent owns user-facing questions. If messaging is unavailable, report the unresolved question and its impact.`;
+
 export const codexAgentRoles: CodexAgentRole[] = [
   {
     id: "researcher",
@@ -126,6 +128,12 @@ For nontrivial changes:
 6. If tests fail or critical/high findings remain, report the blockers instead of declaring completion.
 7. Summarize changed files, tests run, review findings, remaining risks, and proposed delivery steps for human approval.
 
+## Clarifying questions
+
+Specialist agents may ask the main Codex agent focused questions when a missing requirement, conflicting evidence, or required authorization would materially change their work. Include the decision needed, evidence, and a recommended option; continue safe independent work while waiting. If direct messaging is unavailable, report the question and its impact. Do not guess an answer or ask the user for an approval on behalf of the main agent.
+
+The main agent answers from repository evidence when it can. Ask the user a concise question when the decision is genuinely theirs, especially for scope, product behavior, credentials, or permission to make external changes. Keep unrelated safe work moving; pause only the affected work until answered. Never treat silence as approval.
+
 Do not claim tests passed unless they ran. Never expose credentials. Do not merge, deploy, push, or perform destructive actions without explicit authorization and applicable project policy approval.
 `;
 
@@ -138,6 +146,8 @@ export function featurePrompt(task: string): string {
 Task: ${description}
 
 Act as technical lead and coordinate specialized agents.
+
+Ask me a concise clarifying question if an unresolved product decision, scope change, or required authorization would materially affect the result. Have specialists route questions through you, and continue safe independent work while awaiting an answer. Do not assume approval.
 
 1. Explore the relevant code.
 2. Produce a plan and acceptance criteria.
@@ -249,7 +259,7 @@ function parseSelection(value: string, roles: CodexAgentRole[], blankMeansAll: b
 }
 
 function roleFile(name: string, role: { description: string; instructions: string }): string {
-  return `name = ${JSON.stringify(name)}\ndescription = ${JSON.stringify(role.description)}\ndeveloper_instructions = ${JSON.stringify(role.instructions)}\n`;
+  return `name = ${JSON.stringify(name)}\ndescription = ${JSON.stringify(role.description)}\ndeveloper_instructions = ${JSON.stringify(`${role.instructions} ${specialistQuestionProtocol}`)}\n`;
 }
 
 export function codexAgentToml(role: CodexAgentRole): string {

@@ -138,7 +138,10 @@ Writer, Accessibility Specialist, Performance Analyst, Operations Specialist, an
 Specialist. The main Codex agent is always the orchestrator for planning and delivery, rather than
 another generated specialist. `--agents` selects roles non-interactively; `--agents none` selects no
 specialists. Without a terminal, setup uses the defaults. The generated `AGENTS.md` includes the
-eight-stage workflow and its required outputs.
+eight-stage workflow and its required outputs. Specialists can raise focused questions to the main
+Codex agent when requirements, evidence, or approvals are unclear; the main agent asks the user when
+the decision is theirs. They can continue independent safe work while an answer is pending, but must
+not guess or treat silence as approval.
 
 Agent IDs for `--agents`: `researcher`, `developer`, `tester`, `reviewer`, `security`, `docs`,
 `accessibility`, `performance`, `operations`, and `data`.
