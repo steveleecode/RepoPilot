@@ -28,6 +28,12 @@ The dashboard intentionally labels incomplete behavior as planned or unavailable
 The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm repopilot` script. It supports:
 
 - `--help`
+- `help <topic>` and a short no-argument overview
+- `setup` / `config setup` for guided project configuration
+- `codex setup` with selectable specialist roles and optional Gemini tailoring
+- `codex prompt <task>` for a reusable eight-stage development prompt
+- `config gemini`, `config status`, and read-only streaming `chat`
+- `plan <objective>` as the memorable alias for provider-backed `run <objective>`
 - `version`
 - `doctor`
 - `init` as a top-level policy initialization command
@@ -47,6 +53,11 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 
 Repository-oriented commands accept `--repo <path>`. Data-producing commands support JSON output,
 unknown flags are rejected, and command failures use stable categorized exit codes.
+
+Setup can create an evidence-based GitHub Actions starter from a GitHub remote and root npm/pnpm
+checks. It does not modify remote branch protection. Gemini keys remain in an ignored, owner-only
+project `.repopilot/.env`; agent tailoring receives selected default TOML templates and an optional
+description, not repository source. Existing agent and policy files are preserved.
 
 ## Workflow State
 

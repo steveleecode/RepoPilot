@@ -1,13 +1,14 @@
 # RepoPilot
 
-RepoPilot is a local-first developer tool for preparing software repositories for reliable AI-assisted development. It analyzes repository evidence, proposes tailored configuration, validates proposed changes before writing them, and explains what is ready or missing.
+RepoPilot is a local-first CLI for setting up an agentic development workflow in an existing
+repository. It can analyze repository evidence, generate Codex agent guidance and GitHub CI starters,
+chat with Gemini, plan work with Codex or Ollama, and apply validated proposals in isolated worktrees.
 
 ## Status
 
-RepoPilot is an early local development tool. It can plan with Ollama, propose bounded changes, apply
-them in an isolated Git worktree, and run explicitly approved validation checks. It is not
-production-ready and does not yet call cloud AI services, authenticate to GitHub, or commit/push
-changes.
+RepoPilot v0.3.0 is a developer preview, not an unattended coding or deployment service. Gemini chat
+and agent tailoring are opt-in and use a locally configured key. Codex uses its own authentication.
+RepoPilot does not authenticate to GitHub or silently push, merge, or deploy.
 
 Implemented foundations:
 
@@ -47,17 +48,50 @@ Install dependencies:
 pnpm install
 ```
 
-For a standalone installation, download `repopilot-0.2.0.tgz` from the release and run:
+For a standalone installation, download `repopilot-0.3.0.tgz` and its checksum from the release:
 
 ```bash
-npm install -g ./repopilot-0.2.0.tgz
+shasum -a 256 -c repopilot-0.3.0.sha256
+npm install -g ./repopilot-0.3.0.tgz
 repopilot doctor
 ```
 
 The release archive contains the CLI and context broker; it does not require the monorepo or a
 global pnpm installation for the CLI itself. pnpm 11 is needed when validating pnpm projects.
-See the [v0.2.0 developer-preview notes](docs/releases/v0.2.0.md) for the supported workflow,
+See the [v0.3.0 developer-preview notes](docs/releases/v0.3.0.md) for the supported workflow,
 limitations, upgrade, and uninstall instructions.
+
+## Quick start
+
+From any repository you want RepoPilot to manage:
+
+```bash
+repopilot setup --repo /path/to/project
+repopilot scan --repo /path/to/project
+repopilot config status --repo /path/to/project
+repopilot codex prompt "Add a search filter" --repo /path/to/project
+```
+
+`setup` is guided in a terminal. It creates the project policy and lets you select Codex specialist
+agents. Gemini chat and AI tailoring are optional; if used, the API key is saved only in the
+project's ignored `.repopilot/.env`. If a GitHub remote and supported checks are detected, setup
+generates a CI starter, but GitHub branch protection must be enabled separately. Existing files are
+preserved. Run `repopilot help setup` for focused guidance.
+
+To use RepoPilot's provider-backed workflow:
+
+```bash
+repopilot providers codex login
+repopilot plan "Improve parser coverage" --provider codex --repo /path/to/project
+repopilot propose <run-id> --repo /path/to/project
+repopilot inspect <run-id> --repo /path/to/project
+repopilot apply <run-id> --approve --repo /path/to/project
+repopilot verify <run-id> --execute-checks --repo /path/to/project
+```
+
+Planning is read-only; inspect before apply. `apply` writes to an isolated worktree and `verify`
+executes target-project checks only with the explicit flag. Use validation only for repositories you
+trust. `repopilot help workflow` explains the sequence.
 
 ## Commands
 
@@ -71,35 +105,14 @@ pnpm test:e2e
 pnpm check
 ```
 
-CLI examples:
+For the source checkout, prefix CLI commands with `pnpm repopilot`. The focused help topics are:
 
 ```bash
+pnpm repopilot help setup
+pnpm repopilot help workflow
+pnpm repopilot help providers
+pnpm repopilot help policy
 pnpm repopilot --help
-pnpm repopilot version
-pnpm repopilot doctor
-pnpm repopilot scan --repo .
-pnpm repopilot scan --repo . --json
-pnpm repopilot providers list
-pnpm repopilot providers doctor
-pnpm repopilot providers configure ollama --model <installed-model>
-pnpm repopilot run "Plan parser coverage" --provider ollama
-pnpm repopilot propose <run-id> --task <planned-task-id>
-pnpm repopilot inspect <run-id>
-pnpm repopilot apply <run-id> --approve
-pnpm repopilot verify <run-id> --execute-checks
-pnpm repopilot repair <run-id>
-pnpm repopilot run "Plan parser coverage" --provider fake
-pnpm repopilot init --repo ../another-repository
-pnpm repopilot validate --repo ../another-repository
-pnpm repopilot runs create "Add parser coverage" --provider codex
-pnpm repopilot runs list
-pnpm repopilot status <run-id>
-pnpm repopilot resume <run-id>
-pnpm repopilot policy show
-pnpm repopilot policy validate
-pnpm repopilot policy init
-pnpm repopilot policy set commits.enabled true
-pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 ```
 
 ## Monorepo Layout
@@ -131,7 +144,7 @@ pnpm repopilot run --parallel --max-workers 3 --auto-commit --no-push
 - [Package Reference](docs/architecture/PACKAGE_REFERENCE.md)
 - [Validation and Security](docs/architecture/VALIDATION_AND_SECURITY.md)
 - [Decision Records](docs/decisions)
-- [Release Notes](docs/releases/v0.2.0.md)
+- [Release Notes](docs/releases/v0.3.0.md)
 
 ## Development Workflow
 
@@ -146,7 +159,9 @@ Execution policy is configured in `.repopilot/config.yaml`. Built-in safe defaul
 
 RepoPilot does not add telemetry or authenticate with GitHub. Ollama uses a configured loopback
 endpoint; choosing Codex sends bounded planning evidence or source context through the authenticated
-Codex CLI to OpenAI. Source context is read by a separate broker process and capped before either
+Codex CLI to OpenAI. Gemini chat sends bounded evidence-backed metadata and typed messages to Google;
+agent tailoring sends selected default TOML templates and an optional description only when enabled.
+Source context for Codex and Ollama is read by a separate broker process and capped before either
 provider receives it. The executor accepts only code-owned commands, uses no shell,
 and receives an explicit environment allowlist. Validation may execute target tool configuration and
 scripts after `--execute-checks`; it is not an OS-level container or remote sandbox.
