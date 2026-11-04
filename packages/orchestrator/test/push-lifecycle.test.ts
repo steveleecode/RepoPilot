@@ -36,7 +36,8 @@ function git(root: string, args: string[]) {
   return result.stdout.trim();
 }
 
-describe("reviewed push", () => {
+// These integration cases spawn real Git processes; hosted macOS runners exceed the 5s unit-test default.
+describe("reviewed push", { timeout: 15_000 }, () => {
   it("keeps default commits local and publishes only the immutable reviewed branch when explicitly requested", async () => {
     const fixture = await ready();
     expect(git(fixture.remote, ["for-each-ref", "--format=%(refname)"])).toBe("");
@@ -189,8 +190,7 @@ describe("reviewed push", () => {
     ).toBe(true);
     git(fixture.remote, ["update-ref", `refs/heads/${fixture.committed.branch}`, fixture.base]);
     await expect(fixture.push()).rejects.toThrow("automatic replay is disabled");
-    // This case exercises real Git transport, recovery, and divergence checks on hosted runners.
-  }, 15_000);
+  });
 });
 
 async function fakePnpm(fixture: Awaited<ReturnType<typeof ready>>, code: string) {
