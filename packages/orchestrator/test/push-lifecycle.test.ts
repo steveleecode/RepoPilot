@@ -189,7 +189,8 @@ describe("reviewed push", () => {
     ).toBe(true);
     git(fixture.remote, ["update-ref", `refs/heads/${fixture.committed.branch}`, fixture.base]);
     await expect(fixture.push()).rejects.toThrow("automatic replay is disabled");
-  });
+    // This case exercises real Git transport, recovery, and divergence checks on hosted runners.
+  }, 15_000);
 });
 
 async function fakePnpm(fixture: Awaited<ReturnType<typeof ready>>, code: string) {

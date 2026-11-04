@@ -64,7 +64,8 @@ repopilot version
 ```
 
 The release builder smoke-tests isolated global installation and removal locally. Existing release
-CI runs on Node 22 Linux; the macOS/Linux matrix expansion awaits workflow publishing permission.
+CI runs on Node 22 Linux; the [npm release action](.github/workflows/publish-npm.yml) adds Linux/macOS
+validation and explicitly requested, tokenless npm publishing.
 Hosted CI results must pass before release; Windows is currently unvalidated
 and unsupported for standalone release installation. The archive contains the `repilot` npm package;
 its local filename retains the RepoPilot name for compatibility with existing CI artifact paths.

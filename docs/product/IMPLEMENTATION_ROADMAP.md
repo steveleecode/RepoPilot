@@ -244,8 +244,10 @@ unsupported.
 First close the Phase 13 distribution gate: observe the Node 22 macOS/Linux release matrix,
 validate isolated global installation/removal and upgrades, and finalize the proprietary/public-source
 publication decisions. The owner-completed EULA v1.0, reviewed CLI dependency notices,
-and explicit packaged acceptance are integrated and smoke-tested; see [licensing review](../legal/REVIEW.txt). Install/removal smoke checks are implemented. The macOS/Linux CI matrix is prepared locally but awaits workflow publishing permission; hosted results and
-public distribution are not established. Windows remains outside the validated release scope.
+and explicit packaged acceptance are integrated and smoke-tested; see [licensing review](../legal/REVIEW.txt). Install/removal smoke checks are implemented. The [npm release action](../../.github/workflows/publish-npm.yml) provides a Linux/macOS matrix and
+manual, tokenless publication with post-upload registry verification. `repilot@0.3.0` is publicly
+available and its registry installation was verified. Live OIDC publication remains to be exercised
+on the next authorized version. Windows remains outside the validated release scope.
 
 Then complete Phase 12 terminal controls, including cancellation and explicit worktree cleanup,
 then improve executable acceptance evidence and finding reproduction. Pull-request creation,
