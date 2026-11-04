@@ -83,10 +83,15 @@ function git(
 }
 
 function assertNoFilters(root: string): void {
-  // Match freshness helpers' effective config, including system/global, includes and config.worktree.
+  // Match freshness and commit helpers: ignore ambient config, but inspect repository includes
+  // and config.worktree so target-controlled filters cannot run.
   const result = spawnSync("git", ["config", "--includes", "--get-regexp", "^filter\\."], {
     cwd: root,
-    env: { PATH: process.env.PATH ?? "" },
+    env: {
+      PATH: process.env.PATH ?? "",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_GLOBAL: "/dev/null"
+    },
     encoding: "utf8",
     timeout: 5_000,
     maxBuffer: 100_000

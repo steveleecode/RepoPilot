@@ -270,7 +270,11 @@ function runTextProcess(
 ): { code: number | null; stdout: string; stderr: string } {
   const result = spawnSync(executable, args, {
     cwd,
-    env: { PATH: process.env.PATH ?? "" },
+    env: {
+      PATH: process.env.PATH ?? "",
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_GLOBAL: "/dev/null"
+    },
     shell: false,
     encoding: "utf8",
     timeout: 30_000,

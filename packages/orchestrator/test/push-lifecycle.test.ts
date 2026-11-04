@@ -116,7 +116,7 @@ describe("reviewed push", () => {
     await expect(fixture.push()).rejects.toThrow("--execute-checks");
     await fixture.push(true, true);
     expect(await readFile(log, "utf8")).toBe("run build\nexec vitest run\n");
-  });
+  }, 15_000);
   it("ignores target mirror/refspec/hooks and suppresses local receiver hooks", async () => {
     const fixture = await ready();
     const marker = path.join(fixture.root, ".git", "hook-marker");

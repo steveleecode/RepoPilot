@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { defaultConfig, writeRepositoryConfig } from "@repopilot/policy";
 import { WorkflowStore } from "@repopilot/workflow";
 import {
@@ -16,6 +16,7 @@ import { commitDevelopmentTask } from "../src/git-lifecycle.js";
 
 const roots: string[] = [];
 afterEach(async () => {
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) {
     for (const line of git(root, ["worktree", "list", "--porcelain"]).split("\n"))
       if (line.startsWith("worktree ") && line.slice(9) !== root)
@@ -109,6 +110,37 @@ describe("reviewed local commit", () => {
     });
     await expect(fixture.commit()).rejects.toThrow("interrupted");
   });
+  it("isolates filter inspection, freshness checks and commits from ambient Git configuration", async () => {
+    const fixture = await setup();
+    const resolved = spawnSync("which", ["git"], { encoding: "utf8" });
+    expect(resolved.status).toBe(0);
+    const tools = path.join(fixture.root, ".git", "isolated-tools");
+    await mkdir(tools);
+    const binary = path.join(tools, "git");
+    const ambientConfigRead = path.join(tools, "ambient-config-read");
+    // Simulate a runner with an ambient filter unless the caller explicitly isolates config.
+    await writeFile(
+      binary,
+      `#!/usr/bin/env node
+const { spawnSync } = require("node:child_process");
+const args = process.argv.slice(2);
+if (process.env.GIT_CONFIG_NOSYSTEM !== "1" || process.env.GIT_CONFIG_GLOBAL !== "/dev/null") {
+  require("node:fs").writeFileSync(${JSON.stringify(ambientConfigRead)}, "unexpected ambient config");
+  args.unshift("-c", "filter.runner.clean=false");
+}
+const result = spawnSync(${JSON.stringify(resolved.stdout.trim())}, args, {
+  env: process.env, stdio: "inherit"
+});
+process.exit(result.status ?? 1);
+`
+    );
+    await chmod(binary, 0o755);
+    vi.stubEnv("PATH", `${tools}${path.delimiter}${process.env.PATH ?? ""}`);
+    const committed = await fixture.commit();
+    expect(committed.branch).toBe(`codex/repopilot-${fixture.runId}`);
+    expect(await fixture.commit()).toEqual(committed);
+    await expect(readFile(ambientConfigRead)).rejects.toThrow();
+  }, 15_000);
   it("rejects worktree-specific filters before freshness helpers can execute them", async () => {
     const fixture = await setup();
     const marker = path.join(fixture.root, "worktree-filter-marker");
