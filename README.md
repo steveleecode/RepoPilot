@@ -6,6 +6,8 @@ Set up Codex specialists, understand a repository from evidence, and move from a
 changes in an isolated worktree. RepoPilot brings policy, checks, and recoverable run history to your
 terminal so each project can follow the same process.
 
+**[Try now with ```npm```](https://npmx.dev/package/repilot)**
+
 [Getting started](#getting-started) · [Features](#features) · [Documentation](#documentation) · [Contributing](#development-and-contributing)
 
 ![Real zsh command completion followed by an evidence-backed repository scan](docs/assets/repopilot-demo.gif)
