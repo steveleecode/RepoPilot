@@ -16,10 +16,25 @@ repositories you trust.
 
 ## Getting started
 
+### Install from npm
+
+Requires **Node.js 22–25 and Git** on macOS or Linux. The npm package is named `repilot`;
+`repilot` and `repopilot` are command aliases.
+
+```bash
+npm install -g repilot
+repopilot --license
+# Only if you agree to EULA v1.0:
+export REPOPILOT_ACCEPT_EULA=1
+repopilot version
+repopilot doctor
+```
+
+Read the [npm package guide](docs/product/NPM_README.md) for usage, upgrades, and uninstall instructions.
+
 ### Install from source
 
-Requires **Node.js 22, pnpm 11, and Git**. The source checkout is the installation path documented here;
-these commands do not assume a published npm package or release asset.
+Requires **Node.js 22, pnpm 11, and Git**.
 
 ```bash
 git clone https://github.com/steveleecode/RepoPilot.git
@@ -47,7 +62,8 @@ repopilot version
 The release builder smoke-tests isolated global installation and removal locally. Existing release
 CI runs on Node 22 Linux; the macOS/Linux matrix expansion awaits workflow publishing permission.
 Hosted CI results must pass before release; Windows is currently unvalidated
-and unsupported for standalone release installation. No public npm publication is assumed.
+and unsupported for standalone release installation. The archive contains the `repilot` npm package;
+its local filename retains the RepoPilot name for compatibility with existing CI artifact paths.
 
 The archive bundles the CLI, context brokers, EULA, and [third-party notices](docs/legal/THIRD_PARTY_NOTICES.txt).
 Packaged commands require explicit EULA acceptance, except `repopilot --license`. Installation without

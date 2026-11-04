@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { chmod, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,9 +13,11 @@ const manifest = JSON.parse(await readFile(path.join(root, "package.json"), "utf
 const cliManifest = JSON.parse(await readFile(path.join(root, "apps/cli/package.json"), "utf8"));
 if (manifest.version !== cliManifest.version) throw new Error("Root and CLI versions differ.");
 const version = manifest.version;
+const packageName = "repilot";
 const temporary = await mkdtemp(path.join(tmpdir(), "repopilot-release-"));
 const staging = path.join(temporary, "package");
 const installed = path.join(temporary, "installed");
+const installedPackage = path.join(installed, "node_modules", packageName);
 await mkdir(path.join(staging, "bin"), { recursive: true });
 await mkdir(releaseRoot, { recursive: true });
 
@@ -61,14 +63,21 @@ try {
     path.join(staging, "package.json"),
     JSON.stringify(
       {
-        name: "repopilot",
+        name: packageName,
+        author: "Stephen Lee",
+        homepage: "https://github.com/steveleecode/RepoPilot#readme",
+        repository: { type: "git", url: "git+https://github.com/steveleecode/RepoPilot.git" },
+        bugs: { url: "https://github.com/steveleecode/RepoPilot/issues" },
+        keywords: ["cli", "repository", "codex", "workflow", "developer-tools"],
+        publishConfig: { registry: "https://registry.npmjs.org/", access: "public", tag: "latest" },
         version,
         description: manifest.description,
         license: "SEE LICENSE IN eula.txt",
         type: "module",
-        bin: { repopilot: "./bin/repopilot.mjs" },
+        bin: { repilot: "./bin/repopilot.mjs", repopilot: "./bin/repopilot.mjs" },
         scripts: { postinstall: "node ./bin/install-completion.mjs" },
         engines: { node: ">=22 <26" },
+        os: ["darwin", "linux"],
         files: ["bin", "README.md", "eula.txt", "THIRD_PARTY_NOTICES.txt"],
         private: false
       },
@@ -118,14 +127,37 @@ if (process.argv.length === 3 && process.argv[2] === "--license") {
   );
   await writeFile(
     path.join(staging, "README.md"),
-    `# RepoPilot ${version}\n\nSelf-contained local CLI release. Requires Node.js 22–25 and Git.\nProprietary software: read eula.txt before installation or use. Public source availability is not an open-source license.\nRun repopilot --license to read the terms. Set REPOPILOT_ACCEPT_EULA=1 only if you agree to EULA v1.0. Third-party terms are in THIRD_PARTY_NOTICES.txt.\nGlobal zsh installs enable completion by default. Set REPOPILOT_SKIP_COMPLETION_SETUP=1 to opt out. Run repopilot settings for personal completion configuration.\nSee https://github.com/steveleecode/RepoPilot for setup and security guidance.\n`
+    await readFile(path.join(root, "docs/product/NPM_README.md"), "utf8")
   );
-  run(
-    "npm",
-    ["pack", staging, "--pack-destination", releaseRoot, "--ignore-scripts", "--json"],
-    root
-  );
+  const packed = JSON.parse(
+    run(
+      "npm",
+      ["pack", staging, "--pack-destination", releaseRoot, "--ignore-scripts", "--json"],
+      root
+    )
+  )[0];
+  if (packed.name !== packageName || packed.version !== version)
+    throw new Error("Packed npm identity does not match the intended release.");
+  const expectedFiles = new Set([
+    "package.json",
+    "README.md",
+    "eula.txt",
+    "THIRD_PARTY_NOTICES.txt",
+    "bin/repopilot.mjs",
+    "bin/repopilot-core.mjs",
+    "bin/change-broker.mjs",
+    "bin/review-broker.mjs",
+    "bin/install-completion.mjs",
+    "bin/install-completion-core.mjs"
+  ]);
+  if (
+    packed.files.length !== expectedFiles.size ||
+    packed.files.some((file) => !expectedFiles.has(file.path))
+  )
+    throw new Error("Packed files differ from the release allowlist; publication requires review.");
   const archive = path.join(releaseRoot, `repopilot-${version}.tgz`);
+  // Preserve the archive path consumed by existing CI and source-install instructions.
+  await rename(path.join(releaseRoot, packed.filename), archive);
   run(
     "npm",
     [
@@ -140,20 +172,25 @@ if (process.argv.length === 3 && process.argv[2] === "--license") {
     ],
     root
   );
-  const executable = path.join(installed, "node_modules/repopilot/bin/repopilot.mjs");
+  const executable = path.join(installedPackage, "bin/repopilot.mjs");
   const installedManifest = JSON.parse(
-    await readFile(path.join(installed, "node_modules/repopilot/package.json"), "utf8")
+    await readFile(path.join(installedPackage, "package.json"), "utf8")
   );
   if (
+    installedManifest.name !== packageName ||
+    installedManifest.version !== version ||
+    installedManifest.bin?.repilot !== "./bin/repopilot.mjs" ||
+    installedManifest.bin?.repopilot !== "./bin/repopilot.mjs"
+  )
+    throw new Error("Installed npm identity or command aliases differ from the intended release.");
+  if (
     installedManifest.license !== "SEE LICENSE IN eula.txt" ||
-    (await readFile(path.join(installed, "node_modules/repopilot/eula.txt"), "utf8")) !== eula
+    (await readFile(path.join(installedPackage, "eula.txt"), "utf8")) !== eula
   )
     throw new Error("Packaged CLI is missing its EULA or license metadata.");
   if (
-    (await readFile(
-      path.join(installed, "node_modules/repopilot/THIRD_PARTY_NOTICES.txt"),
-      "utf8"
-    )) !== notices.text
+    (await readFile(path.join(installedPackage, "THIRD_PARTY_NOTICES.txt"), "utf8")) !==
+    notices.text
   )
     throw new Error("Packaged CLI is missing third-party notices.");
   const declined = spawnSync(
@@ -182,11 +219,7 @@ if (process.argv.length === 3 && process.argv[2] === "--license") {
     throw new Error("Packaged license display requires acceptance or differs from the EULA.");
   if (installedManifest.scripts?.postinstall !== "node ./bin/install-completion.mjs")
     throw new Error("Packaged CLI is missing its completion install hook.");
-  run(
-    process.execPath,
-    [path.join(installed, "node_modules/repopilot/bin/install-completion.mjs")],
-    root
-  );
+  run(process.execPath, [path.join(installedPackage, "bin/install-completion.mjs")], root);
   const versionOutput = run(process.execPath, [executable, "version"], root).trim();
   if (versionOutput !== version)
     throw new Error(`Packaged CLI reported ${versionOutput}, expected ${version}.`);
@@ -264,12 +297,19 @@ if (process.argv.length === 3 && process.argv[2] === "--license") {
   const globalCommand = path.join(globalPrefix, "bin/repopilot");
   if (run(globalCommand, ["version"], fixture).trim() !== version)
     throw new Error("Global CLI command smoke test failed.");
+  const aliasCommand = path.join(globalPrefix, "bin/repilot");
+  if (run(aliasCommand, ["version"], fixture).trim() !== version)
+    throw new Error("Global repilot alias smoke test failed.");
   run(
     "npm",
-    ["uninstall", "--global", "--prefix", globalPrefix, "--offline", "repopilot"],
+    ["uninstall", "--global", "--prefix", globalPrefix, "--offline", packageName],
     fixture
   );
-  for (const removed of [globalCommand, path.join(globalPrefix, "lib/node_modules/repopilot")]) {
+  for (const removed of [
+    globalCommand,
+    aliasCommand,
+    path.join(globalPrefix, "lib/node_modules", packageName)
+  ]) {
     try {
       await lstat(removed);
     } catch (error) {
