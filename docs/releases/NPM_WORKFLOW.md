@@ -15,7 +15,9 @@ does not commit version changes, push Git branches, open pull requests, or merge
 Configured November 4, 2026: the workflow is uploaded to `codex/proprietary-eula` and registered in
 GitHub Actions. npm trusted publisher `6000f4db-2e0a-411b-92ea-30d83576cac7` binds `repilot` to
 `steveleecode/RepoPilot`, `publish-npm.yml`, environment `npm`, with direct publishing allowed.
-The manual feature-branch dry-run trigger has been exercised. No new npm version was published
+The [manual feature-branch dry run](https://github.com/steveleecode/RepoPilot/actions/runs/41894747201)
+passed on Linux and macOS with version override `0.3.1`, including full checks, archive smoke tests,
+and artifact upload. The publish job was skipped as requested. No new npm version was published
 while setting up the action. Live OIDC publication remains to be exercised on the next authorized release.
 
 ## One-time setup
