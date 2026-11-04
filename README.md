@@ -1,6 +1,6 @@
 # RepoPilot
 
-**A repeatable workflow for AI-assisted development.**
+**Turn a scoped task into reviewed, verified changes—with an audit trail.**
 
 Set up Codex specialists, understand a repository from evidence, and move from a plan to reviewed
 changes in an isolated worktree. RepoPilot brings policy, checks, and recoverable run history to your
@@ -24,6 +24,9 @@ these commands do not assume a published npm package or release asset.
 ```bash
 git clone https://github.com/steveleecode/RepoPilot.git
 cd RepoPilot
+cat docs/legal/EULA.txt
+# Only if you agree to EULA v1.0 (including for source builds):
+export REPOPILOT_ACCEPT_EULA=1
 pnpm install --frozen-lockfile
 pnpm build
 pnpm repopilot doctor
@@ -35,10 +38,21 @@ Run commands from this checkout with `pnpm repopilot`. To create a standalone CL
 pnpm release:build
 (cd release-artifacts && shasum -a 256 -c repopilot-0.3.0.sha256)
 npm install -g ./release-artifacts/repopilot-0.3.0.tgz
+repopilot --license
+# Only if you agree to EULA v1.0:
+export REPOPILOT_ACCEPT_EULA=1
 repopilot version
 ```
 
-The archive bundles the CLI and context brokers. Global zsh installation attempts to enable completion;
+The release builder smoke-tests isolated global installation and removal locally. Existing release
+CI runs on Node 22 Linux; the macOS/Linux matrix expansion awaits workflow publishing permission.
+Hosted CI results must pass before release; Windows is currently unvalidated
+and unsupported for standalone release installation. No public npm publication is assumed.
+
+The archive bundles the CLI, context brokers, EULA, and [third-party notices](docs/legal/THIRD_PARTY_NOTICES.txt).
+Packaged commands require explicit EULA acceptance, except `repopilot --license`. Installation without
+acceptance skips shell setup. After acceptance, run `repopilot completion install zsh` to enable it.
+Global zsh installation with acceptance attempts to enable completion;
 open a new terminal afterward. Set `REPOPILOT_SKIP_COMPLETION_SETUP=1` before installation to opt out.
 See [completion setup and removal](docs/product/CLI_REFERENCE.md#zsh-command-menus-and-completion).
 
@@ -155,4 +169,8 @@ changes. The [documentation index](docs/README.md#for-contributors) links archit
 
 [Source](https://github.com/steveleecode/RepoPilot) · [Issues](https://github.com/steveleecode/RepoPilot/issues)
 
-**License:** this checkout contains no license file. No open-source license grant is asserted here.
+**License:** proprietary, with publicly visible source. See the
+[RepoPilot EULA](docs/legal/EULA.txt), version 1.0, effective November 4, 2026. Personal and internal
+business use are permitted under its terms; redistribution, reuse in other products, and hosted
+services require separate permission. GitHub platform rights and third-party licenses remain
+unaffected. Public source availability does not make RepoPilot open source.

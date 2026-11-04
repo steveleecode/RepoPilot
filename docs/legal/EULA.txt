@@ -1,0 +1,178 @@
+REPOPILOT PROPRIETARY END-USER LICENSE AGREEMENT
+Version: 1.0
+Effective date: November 4, 2026
+Licensor: Stephen Lee, an individual
+Software: RepoPilot
+Copyright © 2026 Stephen Lee. All rights reserved.
+Licensing Contact: stlee208@gmail.com
+
+1. PARTIES, SCOPE, AND ACCEPTANCE
+
+This agreement is between the Licensor identified above ("Licensor") and the
+individual or legal entity accepting it ("you"). A person accepting for an entity
+must have authority to bind that entity.
+
+"Software" means Licensor-owned RepoPilot source code, executable distributions,
+documentation, and assets supplied with the approved version of this agreement.
+It excludes third-party components and your materials described below.
+
+Read this agreement before use. You affirmatively accept version 1.0 by setting
+REPOPILOT_ACCEPT_EULA=1 when running the Software, or by separately providing
+express written acceptance to Licensor. Set that variable only if you agree and
+are authorized to accept. This permission applies to source builds as well as
+packaged releases. Downloading or installing a package solely to inspect these
+terms does not, by itself, constitute acceptance or permit operational use.
+Mere viewing of the public repository is not affirmative acceptance. If you do
+not accept, you receive no permissions under this agreement. Rights arising
+independently under applicable law, third-party licenses, or GitHub's terms are
+not conditioned on accepting this agreement.
+
+2. LIMITED LICENSE
+
+Subject to your acceptance and compliance, Licensor grants you a non-exclusive,
+non-transferable license, without a license fee for this version, to:
+
+(a) download and copy the Software as reasonably necessary to inspect, build,
+    install, and run it for your own personal use or internal business operations;
+(b) modify your local copy solely for those permitted uses; and
+(c) make reasonable backup copies retaining applicable notices.
+
+An entity may permit its employees and contractors to exercise these rights
+solely on its behalf, subject to confidentiality and use restrictions at least
+as protective as this agreement. You remain responsible for their compliance.
+This does not authorize distribution to customers, affiliates, or the public.
+Contractors receive no independent right to reuse the Software.
+
+Commercial internal use is permitted. Redistribution, embedding in another
+product, and offering the Software as a service require a separate written
+license from Licensor. No right to support, updates, or future versions is granted.
+
+3. RESTRICTIONS
+
+Except as expressly permitted here, by a separate written agreement, by
+applicable law that cannot be overridden, or by the rights in sections 4 and 6,
+you may not:
+
+(a) distribute, publish, sublicense, sell, rent, lease, or transfer copies of the
+    Software or modified versions, including executables or containers;
+(b) copy or incorporate Software code or assets into another product, library,
+    template collection, or service, or distribute derivative works;
+(c) provide third parties access to the Software's functionality as a hosted,
+    managed, service-bureau, or software-as-a-service offering;
+(d) remove or obscure copyright, license, or attribution notices; or
+(e) use Licensor's names, logos, or trademarks to imply endorsement.
+
+These restrictions concern the Software and protected expression. They do not
+claim ownership of general ideas, skills, independently developed code, or rights
+that copyright law does not grant Licensor. This agreement does not impose a
+blanket prohibition on independent competing products.
+
+4. PUBLIC REPOSITORY AND GITHUB RIGHTS
+
+Public visibility does not make the Software open source. However, this agreement
+does not revoke or restrict rights granted to GitHub or its users under the
+applicable GitHub Terms of Service, including viewing and forking within GitHub
+and other use of GitHub functionality to the extent those terms authorize it.
+
+A GitHub fork does not, by itself, confer permission under this agreement to
+redistribute the Software elsewhere, sell modified distributions, reuse its code
+in another product, or operate a hosted service. Platform-granted rights and
+mandatory legal rights remain unaffected. Do not represent a fork as an official
+RepoPilot release.
+
+5. OWNERSHIP, YOUR PROJECTS, AND GENERATED OUTPUT
+
+Licensor and other applicable rights holders retain ownership of the Software.
+All rights not expressly granted are reserved. No ownership transfers to you.
+No license to Licensor's trademarks is granted beyond truthful identification.
+
+You retain your rights in repositories, prompts, credentials, data, and other
+materials you supply. Licensor claims no ownership of your projects or output
+solely because you used RepoPilot. Using RepoPilot does not place your project
+under this agreement. Software code or assets copied into output remain subject
+to their existing terms; third-party or model-generated content may carry its own
+rights or restrictions. Licensor does not guarantee exclusive rights in output.
+
+This agreement does not assign contributor copyrights. Contributions require a
+separate contribution policy or agreement before acceptance. Do not submit code
+assuming an open-source contribution license applies.
+
+6. THIRD-PARTY COMPONENTS AND MANDATORY RIGHTS
+
+Third-party components, models, services, and tools are governed by their own
+licenses and terms. Their applicable licenses control those components in the
+event of a conflict. This agreement does not relicense dependencies, remove
+open-source permissions, or replace required notices or source offers.
+
+Nothing here limits non-waivable rights, lawful exceptions, or legally protected
+activities, including any applicable rights concerning interoperability,
+security research, or use of computer programs. Exercise of those independent
+rights does not require Licensor's permission under this agreement.
+
+7. OPERATIONAL RESPONSIBILITY
+
+RepoPilot is a developer tool that can propose changes and, when configured and
+authorized, run commands or perform Git operations. You are responsible for
+backups, repository access, provider configuration, execution policy, approvals,
+and review of changes and outputs. Model output and passing checks do not
+guarantee correctness, security, or suitability. Do not supply credentials or
+third-party information you are not authorized to use.
+
+This agreement creates no new consent to telemetry or external data transfer.
+Actual data handling must be explained by the applicable product documentation,
+provider terms, and any separately applicable privacy notice.
+
+8. WARRANTY DISCLAIMER
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED
+"AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, EXPRESS, IMPLIED,
+OR STATUTORY, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+TITLE, AND NON-INFRINGEMENT. LICENSOR DOES NOT WARRANT UNINTERRUPTED OR
+ERROR-FREE OPERATION, OR THE ACCURACY OR SAFETY OF GENERATED OUTPUT.
+
+9. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, LICENSOR WILL NOT BE LIABLE
+FOR INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR LOST
+PROFITS, LOST DATA, OR BUSINESS INTERRUPTION ARISING FROM THE SOFTWARE OR THIS
+AGREEMENT. LICENSOR'S TOTAL LIABILITY WILL NOT EXCEED THE GREATER OF USD 100
+OR THE LICENSE FEES YOU PAID LICENSOR FOR THE SOFTWARE DURING THE TWELVE
+MONTHS BEFORE THE EVENT GIVING RISE TO THE CLAIM.
+
+These limitations do not apply to liability that cannot lawfully be excluded or
+limited, including applicable mandatory consumer protections.
+
+10. TERM AND TERMINATION
+
+This license continues until you terminate it or Licensor terminates it for a
+material breach. For a breach capable of cure, Licensor will provide written
+notice and thirty days to cure before termination. You may terminate by ceasing
+licensed use and deleting copies held solely under this agreement.
+
+After termination, cease use and delete copies held solely under this agreement,
+except legally required archival copies, which must not be used operationally.
+Termination does not extinguish independent GitHub, third-party, or mandatory
+legal rights. Ownership, restrictions, disclaimers, liability limitations, and
+applicable dispute provisions survive to the extent legally enforceable.
+
+11. CHANGES AND SEPARATE AGREEMENTS
+
+The approved version accompanying your copy governs that copy. Publishing new
+terms does not retroactively change this agreement for existing copies. Later
+versions may be offered under separate terms requiring separate acceptance.
+A separate agreement signed by Licensor and you controls to the extent it
+expressly overrides this agreement.
+
+12. GOVERNING LAW AND GENERAL TERMS
+
+Subject to mandatory applicable law, this agreement is governed by the laws of the State of Washington, United States of America, without regard to its conflict-of-law principles.
+
+Subject to applicable mandatory venue, jurisdiction, and consumer protection laws, legal proceedings arising out of or relating to this agreement shall be brought in the state courts located in King County, Washington, or, where federal subject-matter jurisdiction exists, the United States District Court for the Western District of Washington, Seattle Division.
+
+Nothing in this section limits rights or protections that cannot lawfully be waived.
+
+If a provision is unenforceable, the remaining provisions remain effective to the extent permitted by law. Failure to enforce a provision is not a waiver.
+
+This agreement and any expressly applicable signed agreement constitute the entire agreement concerning the licensed Software.
+
+Requests for redistribution, commercial service rights, or other permissions should be directed to the licensing contact identified above.

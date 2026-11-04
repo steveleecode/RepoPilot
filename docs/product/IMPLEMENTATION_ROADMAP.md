@@ -241,7 +241,13 @@ separate destination, freshness, and validation gates. Push tests use local bare
 provider tests use offline substitutes; private HTTPS credential-helper authentication remains
 unsupported.
 
-Next complete Phase 12 terminal controls, including cancellation and explicit worktree cleanup,
+First close the Phase 13 distribution gate: observe the Node 22 macOS/Linux release matrix,
+validate isolated global installation/removal and upgrades, and finalize the proprietary/public-source
+publication decisions. The owner-completed EULA v1.0, reviewed CLI dependency notices,
+and explicit packaged acceptance are integrated and smoke-tested; see [licensing review](../legal/REVIEW.txt). Install/removal smoke checks are implemented. The macOS/Linux CI matrix is prepared locally but awaits workflow publishing permission; hosted results and
+public distribution are not established. Windows remains outside the validated release scope.
+
+Then complete Phase 12 terminal controls, including cancellation and explicit worktree cleanup,
 then improve executable acceptance evidence and finding reproduction. Pull-request creation,
 trusted signing, and automatic interactive approval remain unimplemented. See the
 [product feature roadmap](FEATURE_ROADMAP.md) for the broader priorities and measurement plan.

@@ -43,6 +43,21 @@ still outstanding. **Planned** means the requested product workflow is not imple
 
 These are implemented slices. They do not imply completion of every feature in the original analysis.
 
+## Release readiness comes first
+
+The November 4 product assessment is a prioritization input, not a verified code audit. Existing
+supervised execution, commit/push delivery, and archive packaging remain delivered slices; the
+illustrative `repopilot implement 42` command is a target experience, not a supported command.
+The product promise is: give RepoPilot a scoped task and get reviewed, verified changes with an
+audit trail. Issue ingestion and draft PR creation are future extensions of that workflow.
+
+| Priority | Release gate                           | Status and evidence                                                                                                                                                                                                                                                                                | Exit criteria                                                                                                                                                                                                                           |
+| -------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0       | Installable standalone CLI             | Partial: [release builder](../../scripts/build-release.mjs) bundles the CLI and brokers, checks version/setup, and exercises isolated global install/uninstall. [CI](../../.github/workflows/ci.yml) runs Node 22 Linux checks. The macOS/Linux matrix expansion is prepared locally but awaits workflow publishing permission; hosted results remain to be observed.              | Passing platform jobs, checksum artifacts, documented upgrade/removal, and a tested public installation path. Windows remains unvalidated and unsupported for this release gate.                                                        |
+| P0       | License and publication readiness      | Proprietary/public-source terms adopted: [EULA v1.0](../legal/EULA.txt), effective November 4, 2026. Release packaging includes terms, reviewed dependency notices, and explicit packaged EULA acceptance; see [review](../legal/REVIEW.txt). [Root manifest](../../package.json) remains private. | Local CLI review and acceptance smoke tests delivered. Observe hosted platform results and validate upgrades before any public binary release; review new components before distribution. Do not imply a public package already exists. |
+| P0       | Clear core value and reproducible demo | Partial: [README workflow](../../README.md#your-first-useful-workflow) and [task runner](../../packages/orchestrator/src/task-runner.ts).                                                                                                                                                          | A clean fixture demonstrates task, plan, isolated changes, checks, independent review, and inspection without credentials for offline mode; document live-provider prerequisites separately.                                            |
+| P1       | Evidence of usefulness                 | Planned: measurement protocol below.                                                                                                                                                                                                                                                               | Matched baseline tasks, raw local results, failures, cost availability, and limitations; no unmeasured speed or quality claims.                                                                                                         |
+
 ## Prioritized feature status
 
 | Priority | Feature                                         | Status  | Delivered scope and remaining work                                                                                                                                                                                                                                         |
@@ -104,15 +119,28 @@ review effort, rework, and escaped defects before expanding agent counts or prov
 
 ## Next increments
 
-1. Finish terminal lifecycle controls: cancel, pause, explicit retry, and policy-authorized worktree
-   cleanup, preserving journals and interrupted-operation evidence.
-2. Add executable verification for acceptance criteria and reproduction of review findings before
-   automatically repairing them.
-3. Run a representative task pilot; use the evidence to choose between memory, bug reproduction, and
-   issue-to-PR integration. GitHub authentication requires its own adapter and permission design.
+1. **Distribution gate (started):** run archive smoke tests in Node 22 macOS/Linux CI; exercise the
+   global command shim and uninstall in a disposable prefix; retain checksummed artifacts. Observe
+   hosted CI before declaring either platform validated. The proprietary EULA, reviewed CLI notices, and explicit packaged acceptance are implemented.
+   Review records document ownership limitations. Confirm package identity and observe platform CI
+   before release publication. Validate upgrades and document supported environments.
+2. **Core workflow demo and positioning:** use the existing `run --develop` path for a concise,
+   reproducible task-to-reviewed-change walkthrough. Keep the lower-level commands available.
+   Design quick/supervised/strict interaction modes only within existing policy; no implicit approvals.
+3. **Terminal lifecycle:** cancel, pause, explicit retry, and policy-authorized worktree cleanup,
+   preserving journals and interrupted-operation evidence.
+4. **Trust and measurement:** executable acceptance evidence, reproduce-before-repair review findings,
+   and a local matched-task benchmark. Start with a small pilot, then 20–50 tasks comparing direct
+   Codex, manually configured guidance, and RepoPilot under consistent budgets and criteria.
+5. **Daily integration:** issue ingestion and draft PRs through a separately designed credential and
+   permission adapter; actionable Run History, Live Execution, Code Review, and Repository Health
+   views backed by durable state. PR creation still requires policy and delivery approval.
+6. **Scale after evidence:** dependent multi-task orchestration with isolated write scopes, independent
+   review and combined validation. Measure the benefit before adding agents, roles, or providers.
 
 Keep merge/deployment automation, broad cloud-provider expansion, telemetry, and hosted execution
-outside these increments unless separately designed and authorized.
+outside these increments unless separately designed and authorized. Public publishing, merging a
+release branch, and remote publication are not implied by this roadmap.
 
 ## Outcome measurement — proposed, not achieved
 

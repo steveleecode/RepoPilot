@@ -1,0 +1,101 @@
+REPOPILOT PROPRIETARY LICENSING REVIEW
+Date: November 4, 2026
+Scope: EULA v1.0, repository licensing notices, standalone CLI distribution,
+packaging acceptance path, and bundled third-party notices.
+
+RESULT
+
+The two identified implementation blockers were corrected: missing complete
+third-party attribution and lack of an explicit packaged acceptance path.
+This is a practical licensing and implementation review, not an attorney's
+opinion, a guarantee of enforceability, or a complete intellectual-property audit.
+The owner authorized adoption and publication of the proprietary terms.
+
+EULA REVIEW
+
+The owner-completed agreement identifies Stephen Lee, licensing contact,
+effective date, Washington governing law, and court venue. It permits personal
+and internal business use, including local modifications, while restricting
+redistribution, code incorporation into other products, and hosted services.
+Those permitted uses are intentional; this is not an evaluation-only license.
+
+GitHub platform rights, mandatory legal rights, third-party permissions, and
+users' ownership of their own projects are preserved. Public visibility is not
+represented as an open-source grant. Terms do not claim that a license can
+prevent copying, prevent independent competing development, or revoke platform
+rights. Warranty, liability, termination, and non-retroactive change provisions
+are present; mandatory-law exceptions remain. Enforceability depends on the
+facts and applicable law and is not established by repository checks.
+
+ACCEPTANCE AND PACKAGING EVIDENCE
+
+scripts/build-release.mjs generates a packaged entry point that displays the
+exact bundled EULA with repopilot --license without acceptance. Other commands
+require REPOPILOT_ACCEPT_EULA=1 before importing the operational CLI. Missing
+acceptance returns a nonzero result and is smoke-tested not to create repository
+state. The optional completion installer skips shell setup without acceptance.
+
+Acceptance is an explicit environment assertion for EULA v1.0, not a signature,
+identity verification, centrally stored record, or tamper-proof DRM. The public
+source and internal modules can be invoked outside the packaged entry point;
+the EULA and source-install instructions require acceptance for source builds,
+but source builds do not have the packaged runtime gate. No claim is made that
+technical controls prevent copying or that the gate proves informed assent.
+
+README.md and docs/releases/v0.3.0.md explain review and acceptance. Package
+metadata points to the actual EULA, and packaging checks verify that the
+installed EULA and third-party notice file match their reviewed source copies.
+
+THIRD-PARTY REVIEW EVIDENCE
+
+Inventory is derived from esbuild metafile inputs for the CLI, change broker,
+review broker, and completion installer, not merely top-level dependencies:
+
+- yaml 2.9.0: ISC; complete copyright, permission, and disclaimer text retained.
+- zod 4.4.3: MIT; complete copyright, permission, and disclaimer text retained.
+
+Evidence: installed package.json and LICENSE files under node_modules/.pnpm,
+docs/legal/THIRD_PARTY_NOTICES.txt, and scripts/release-licenses.mjs.
+
+These permissive terms allow proprietary combination while their own permissions
+remain intact. Packaging includes THIRD_PARTY_NOTICES.txt. Bundled inputs must
+match the reviewed notice inventory; a new version, notice change, missing license
+text, or unreviewed license type stops packaging for review. Unit tests cover
+nested package ownership, deduplication, retained notices, missing text, and
+unreviewed license rejection. Release smoke checks exercise actual archives,
+license display, denied/accepted operation, and isolated global install/removal.
+
+This inventory covers the shipped standalone CLI JavaScript. It is not a license
+clearance for a separately distributed dashboard, development toolchain, external
+providers, user repositories, or future native/platform artifacts. Review those
+separately if distributed. Toolchain packages installed locally are not bundled
+merely because they appear in the workspace lockfile.
+
+OWNERSHIP AND RELEASE LIMITS
+
+At review time git shortlog -sn HEAD lists Stephen Lee as the sole recorded
+author (21 commits). Commit attribution is not proof of copyright ownership,
+employer rights, or the origin of every code fragment. No third-party copyright
+headers were found in the first-party CLI/package TypeScript search. Future
+contributions require a separate contribution agreement; the EULA does not
+silently assign contributor rights.
+
+Public-source copying and GitHub forking remain technically possible. Keep
+secrets out of the repository. Publication here means pushing reviewed changes
+to the allowed codex/proprietary-eula branch. The CI workflow expansion is
+retained in the original local commit because the publishing token lacks workflow
+scope; it is excluded from this publication. It does not mean merging main, creating a
+pull request, publishing to npm, or declaring hosted platform CI passed.
+
+PRIMARY REFERENCES CHECKED
+
+GitHub public repository platform rights:
+https://docs.github.com/en/site-policy/github-terms/github-terms-of-service
+
+MIT notice retention requirements:
+https://opensource.org/license/mit
+
+ISC terms used in this archive:
+node_modules/.pnpm/yaml@2.9.0/node_modules/yaml/LICENSE
+
+Actual dependency texts, not this review summary, govern those components.
