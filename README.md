@@ -1,84 +1,113 @@
 # RepoPilot
 
-RepoPilot is a local-first CLI for setting up an agentic development workflow in an existing
-repository. It can analyze repository evidence, generate Codex agent guidance and GitHub CI starters,
-chat with Gemini, plan work with Codex or Ollama, and apply validated proposals in isolated worktrees.
+**Turn a scoped task into reviewed, verified changes—with an audit trail.**
 
-## Status
+Set up Codex specialists, understand a repository from evidence, and move from a plan to reviewed
+changes in an isolated worktree. RepoPilot brings policy, checks, and recoverable run history to your
+terminal so each project can follow the same process.
 
-RepoPilot v0.3.0 is a developer preview, not an unattended coding or deployment service. Gemini chat
-and agent tailoring are opt-in and use a locally configured key. Codex uses its own authentication.
-RepoPilot does not authenticate to GitHub or silently push, merge, or deploy.
+[Getting started](#getting-started) · [Features](#features) · [Documentation](#documentation) · [Contributing](#development-and-contributing)
 
-Implemented foundations:
+![Real zsh command completion followed by an evidence-backed repository scan](docs/assets/repopilot-demo.gif)
 
-- Bounded evidence-backed repository analysis for nested manifests, scripts, workspace layouts, tool configurations, Git metadata, workflows, and agent instructions.
-- Deterministic generation contracts and template rendering that returns proposed files without writing them.
-- Pre-write validators for generated JSON/YAML, referenced paths, referenced package scripts, and duplicate proposed paths.
-- Deterministic instruction linting for long files, duplicate headings, duplicate instructions, missing paths/scripts, and simple command conflicts.
-- Versioned execution policy in `.repopilot/config.yaml`, with presets, CLI commands, dashboard display, enforcement helpers, task parallel-safety checks, and audit records.
-- Durable local workflow runs backed by versioned append-only event journals.
-- Vendor-neutral agent-provider contracts with deterministic fake and transport-injected Codex adapters.
-- Local Ollama planning with versioned model configuration and strict plan validation.
-- A separate bounded source-context broker for Ollama change proposals, with manifests and strict
-  task-scope validation.
-- Isolated Git-worktree apply with stale-base detection, plus opt-in trusted validation and bounded
-  repair proposals.
-- Deterministic workflow orchestration with persisted discovery, planning, authorization, execution, validation, and review gates.
-- A bounded local command-execution boundary with a trusted catalog, argument and working-directory authorization, environment isolation, cancellation, output limits, and redaction.
-- Next.js dashboard shell with repository placeholders, validation timeline, command palette foundation, and Agent Policy settings.
-- CLI commands for doctor checks and policy inspection/update.
-- Unit, build, lint, typecheck, CI, and Playwright smoke-test coverage.
+**v0.3.0 · Developer preview.** The CLI works locally; model-backed development needs Codex or Ollama.
+The dashboard is a preview shell. Review generated changes and use target-project checks only in
+repositories you trust.
 
-## Architecture
+## Getting started
 
-RepoPilot is a TypeScript monorepo with apps for the dashboard and CLI, plus packages for deterministic analysis, generation planning, validation, instruction linting, execution policy, shared contracts, and UI primitives. Repository facts must be backed by evidence. Generated content is represented as proposed changes first, then validated before any future write step.
+### Install from source
 
-## Setup
-
-Requirements:
-
-- Node.js 22
-- pnpm 11
-- Git
-
-Install dependencies:
+Requires **Node.js 22, pnpm 11, and Git**. The source checkout is the installation path documented here;
+these commands do not assume a published npm package or release asset.
 
 ```bash
-pnpm install
+git clone https://github.com/steveleecode/RepoPilot.git
+cd RepoPilot
+cat docs/legal/EULA.txt
+# Only if you agree to EULA v1.0 (including for source builds):
+export REPOPILOT_ACCEPT_EULA=1
+pnpm install --frozen-lockfile
+pnpm build
+pnpm repopilot doctor
 ```
 
-For a standalone installation, download `repopilot-0.3.0.tgz` and its checksum from the release:
+Run commands from this checkout with `pnpm repopilot`. To create a standalone CLI archive:
 
 ```bash
-shasum -a 256 -c repopilot-0.3.0.sha256
-npm install -g ./repopilot-0.3.0.tgz
-repopilot doctor
+pnpm release:build
+(cd release-artifacts && shasum -a 256 -c repopilot-0.3.0.sha256)
+npm install -g ./release-artifacts/repopilot-0.3.0.tgz
+repopilot --license
+# Only if you agree to EULA v1.0:
+export REPOPILOT_ACCEPT_EULA=1
+repopilot version
 ```
 
-The release archive contains the CLI and context broker; it does not require the monorepo or a
-global pnpm installation for the CLI itself. pnpm 11 is needed when validating pnpm projects.
-See the [v0.3.0 developer-preview notes](docs/releases/v0.3.0.md) for the supported workflow,
-limitations, upgrade, and uninstall instructions.
+The release builder smoke-tests isolated global installation and removal locally. Existing release
+CI runs on Node 22 Linux; the macOS/Linux matrix expansion awaits workflow publishing permission.
+Hosted CI results must pass before release; Windows is currently unvalidated
+and unsupported for standalone release installation. No public npm publication is assumed.
 
-## Quick start
+The archive bundles the CLI, context brokers, EULA, and [third-party notices](docs/legal/THIRD_PARTY_NOTICES.txt).
+Packaged commands require explicit EULA acceptance, except `repopilot --license`. Installation without
+acceptance skips shell setup. After acceptance, run `repopilot completion install zsh` to enable it.
+Global zsh installation with acceptance attempts to enable completion;
+open a new terminal afterward. Set `REPOPILOT_SKIP_COMPLETION_SETUP=1` before installation to opt out.
+See [completion setup and removal](docs/product/CLI_REFERENCE.md#zsh-command-menus-and-completion).
 
-From any repository you want RepoPilot to manage:
+### Your first useful workflow
+
+No model credentials are needed to scan a project, generate specialist guidance, or prepare a task prompt.
+Replace `/path/to/project` with an existing local repository:
 
 ```bash
-repopilot setup --repo /path/to/project
-repopilot scan --repo /path/to/project
-repopilot config status --repo /path/to/project
-repopilot codex prompt "Add a search filter" --repo /path/to/project
+pnpm repopilot scan --repo /path/to/project
+pnpm repopilot setup --repo /path/to/project
+pnpm repopilot codex prompt "Add a search filter" --repo /path/to/project
 ```
 
-`setup` is guided in a terminal. It creates the project policy and lets you select Codex specialist
-agents. Gemini chat and AI tailoring are optional; if used, the API key is saved only in the
-project's ignored `.repopilot/.env`. If a GitHub remote and supported checks are detected, setup
-generates a CI starter, but GitHub branch protection must be enabled separately. Existing files are
-preserved. Run `repopilot help setup` for focused guidance.
+`scan` reports detected languages, manifests, scripts, tooling, and evidence counts without running
+project scripts. `setup` guides you through repository policy and Codex specialist selection, preserves
+existing files, and offers optional hosted-provider setup. Skip key entry to stay credential-free.
+Setup writes policy and guidance files in the target project. Start Codex in that repository and paste
+the generated prompt to begin the structured task workflow.
 
-To use RepoPilot's provider-backed workflow:
+After installing the standalone CLI, enable described menus in your current **zsh** session:
+
+```zsh
+eval "$(repopilot completion zsh --auto-menu)"
+```
+
+Type `repopilot `, browse with arrow keys, and select a command.
+Use `repopilot help setup` or `repopilot help workflow` for focused help.
+
+## Features
+
+| Capability                  | What it gives you                                                                                                                                                                                         |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Repository evidence**     | Bounded metadata analysis with evidence for detected facts, including TypeScript, JavaScript, Python, Rust, and Go signals. Detection does not imply support for every language's build tooling.          |
+| **Codex specialist setup**  | Select researcher, developer, tester, reviewer, security, and optional specialist roles. Generate agent configuration and an eight-stage task prompt.                                                     |
+| **Terminal discovery**      | Real zsh completion with command descriptions, flags, value suggestions, and optional automatic menus.                                                                                                    |
+| **Supervised development**  | Codex or Ollama planning, bounded proposals, isolated-worktree apply, explicit validation, repair limits, and independent review. The supervised runner currently accepts one scoped implementation task. |
+| **Recoverable runs**        | Local append-only journals retain plans, artifacts, approvals, and delivery state for inspection and resume.                                                                                              |
+| **Deterministic policy**    | Repository configuration controls approvals, validation, commits, pushes, and parallel-safety rules. CLI flags cannot bypass policy.                                                                      |
+| **Optional read-only chat** | Groq by default, or Gemini, with a project-local key. Chat does not implement changes; Gemini can optionally tailor setup templates.                                                                      |
+
+Repeated setup and ad hoc handoffs make AI coding difficult to review. RepoPilot records the workflow
+and its evidence, keeps proposals separate from applied files, and makes validation and delivery
+explicit. Specialist setup supplies instructions for Codex; it does not itself launch a parallel agent team.
+
+## How it works
+
+1. **Discover and configure.** Scan metadata, select specialists, and review `.repopilot/config.yaml`.
+2. **Plan and propose.** Use Codex or Ollama to create a plan and bounded file proposals.
+3. **Inspect and apply.** Review artifacts before applying validated proposals in an isolated Git worktree.
+4. **Verify and review.** Explicitly authorize project checks; supervised runs add bounded repair and independent review.
+5. **Deliver under policy.** Keep results for review, commit locally, or explicitly request a permitted push.
+
+After [installing and authenticating Codex or configuring Ollama](docs/product/CLI_REFERENCE.md#providers),
+the standalone CLI supports this inspectable sequence:
 
 ```bash
 repopilot providers codex login
@@ -89,79 +118,59 @@ repopilot apply <run-id> --approve --repo /path/to/project
 repopilot verify <run-id> --execute-checks --repo /path/to/project
 ```
 
-Planning is read-only; inspect before apply. `apply` writes to an isolated worktree and `verify`
-executes target-project checks only with the explicit flag. Use validation only for repositories you
-trust. `repopilot help workflow` explains the sequence.
+Use the run ID returned by `plan`. Fresh worktrees need their own project dependencies before checks;
+see the [development workflow](docs/product/CLI_REFERENCE.md#local-development-workflow-phases-810).
+For supervised implementation and recovery, see [run status](docs/product/CLI_REFERENCE.md#run-status)
+and [resume](docs/product/CLI_REFERENCE.md#resume-run).
 
-## Commands
+## Trust and control
 
-```bash
-pnpm dev
-pnpm build
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm check
-```
+Analysis treats repository content as untrusted data and does not execute repository scripts or load
+repository source into the RepoPilot process. Development source context is read through separate,
+bounded brokers. `--execute-checks` permits target tooling to run: **this is not an OS sandbox**.
 
-For the source checkout, prefix CLI commands with `pnpm repopilot`. The focused help topics are:
+RepoPilot adds no telemetry or GitHub authentication. Codex uses its own authentication and sends
+bounded context to OpenAI; Ollama uses a configured loopback endpoint. Optional Groq/Gemini chat
+sends messages and optional repository metadata to the selected provider. Keys stay in the project's
+ignored `.repopilot/.env`; optional tailoring sends selected templates and a description.
 
-```bash
-pnpm repopilot help setup
-pnpm repopilot help workflow
-pnpm repopilot help providers
-pnpm repopilot help policy
-pnpm repopilot --help
-```
-
-## Monorepo Layout
-
-- `apps/web`: Next.js App Router dashboard shell.
-- `apps/cli`: `repopilot` command line app.
-- `packages/analyzer`: deterministic repository evidence contracts and initial detection.
-- `packages/executor`: bounded, no-shell command authorization and local subprocess execution.
-- `packages/generator`: generation plan contracts and deterministic template rendering.
-- `packages/validator`: validation pipeline and proposed-change validators.
-- `packages/instruction-linter`: deterministic linter for agent instruction files.
-- `packages/policy`: execution policy presets, schema validation, deterministic authorization, task parallel-safety, and audit records.
-- `packages/provider`: provider contracts, normalized events, fake provider, and Codex adapter.
-- `packages/orchestrator`: recoverable deterministic workflow engine and gate coordination.
-- `packages/workflow`: persistent run, task, event, artifact, and approval state.
-- `packages/shared`: shared schemas, result utilities, errors, filesystem and logging interfaces.
-- `packages/ui`: accessible UI primitives used by the dashboard.
-- `templates`: future template families.
-- `docs`: product, architecture, and decision records.
+Commits and pushes require policy authorization and any configured approvals. Review-only delivery
+is the default for supervised runs; automatic commit/push delivery is an explicit option. RepoPilot
+does not force-push, create pull requests, merge, or deploy.
 
 ## Documentation
 
-- [Product Spec](docs/product/PRODUCT_SPEC.md)
-- [Implementation Roadmap](docs/product/IMPLEMENTATION_ROADMAP.md)
-- [Implemented Features](docs/product/IMPLEMENTED_FEATURES.md)
-- [CLI Reference](docs/product/CLI_REFERENCE.md)
-- [Execution Policy](docs/product/EXECUTION_POLICY.md)
-- [System Overview](docs/architecture/SYSTEM_OVERVIEW.md)
-- [Package Reference](docs/architecture/PACKAGE_REFERENCE.md)
-- [Validation and Security](docs/architecture/VALIDATION_AND_SECURITY.md)
-- [Decision Records](docs/decisions)
-- [Release Notes](docs/releases/v0.3.0.md)
+| Start here                                                              | Purpose                                                                    |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| [CLI reference](docs/product/CLI_REFERENCE.md)                          | Setup, everyday commands, provider configuration, completion, and recovery |
+| [Execution policy](docs/product/EXECUTION_POLICY.md)                    | Permissions, approval gates, presets, and validation requirements          |
+| [Release notes](docs/releases/v0.3.0.md)                                | Preview limitations, archive installation, upgrade, and uninstall          |
+| [Documentation index](docs/README.md)                                   | User guides, contributor references, and design documents                  |
+| [Capability audit](docs/product/README_AUDIT.md)                        | Source evidence behind this README and verification results                |
+| [Feature roadmap](docs/product/FEATURE_ROADMAP.md)                      | Completed increments and remaining priorities                              |
+| [System overview](docs/architecture/SYSTEM_OVERVIEW.md)                 | Package boundaries and architecture                                        |
+| [Package reference](docs/architecture/PACKAGE_REFERENCE.md)             | Internal contracts and package responsibilities                            |
+| [Validation and security](docs/architecture/VALIDATION_AND_SECURITY.md) | Trust boundaries and execution limits                                      |
 
-## Development Workflow
+## Development and contributing
 
-Run `pnpm check` before committing. Analysis must treat repository contents as untrusted input,
-avoid executing repository scripts, avoid loading repository code in the main process, and attach
-evidence to every detected fact. Validation executes target tooling only with `--execute-checks`;
-use it only for repositories you trust, because this is not an OS sandbox.
+Use Node.js 22 and pnpm 11. After cloning and installing dependencies as above:
 
-Execution policy is configured in `.repopilot/config.yaml`. Built-in safe defaults are applied first, then presets, repository config, and one-run CLI flags. No automated commits, pushes, pull requests, destructive actions, or parallel writes may run unless deterministic policy authorization allows them.
+```bash
+pnpm test       # Unit and integration tests
+pnpm build      # All workspace packages and the dashboard
+pnpm check      # Formatting, lint, types, tests, and build
+pnpm test:e2e   # Playwright dashboard smoke tests (requires browser binaries)
+```
 
-## Security Boundaries
+Read [AGENTS.md](AGENTS.md) before changing repository analysis or execution behavior. Keep contracts
+in their owning packages and attach evidence to detected facts. Run `pnpm check` before submitting
+changes. The [documentation index](docs/README.md#for-contributors) links architecture and decisions.
 
-RepoPilot does not add telemetry or authenticate with GitHub. Ollama uses a configured loopback
-endpoint; choosing Codex sends bounded planning evidence or source context through the authenticated
-Codex CLI to OpenAI. Gemini chat sends bounded evidence-backed metadata and typed messages to Google;
-agent tailoring sends selected default TOML templates and an optional description only when enabled.
-Source context for Codex and Ollama is read by a separate broker process and capped before either
-provider receives it. The executor accepts only code-owned commands, uses no shell,
-and receives an explicit environment allowlist. Validation may execute target tool configuration and
-scripts after `--execute-checks`; it is not an OS-level container or remote sandbox.
+[Source](https://github.com/steveleecode/RepoPilot) · [Issues](https://github.com/steveleecode/RepoPilot/issues)
+
+**License:** proprietary, with publicly visible source. See the
+[RepoPilot EULA](docs/legal/EULA.txt), version 1.0, effective November 4, 2026. Personal and internal
+business use are permitted under its terms; redistribution, reuse in other products, and hosted
+services require separate permission. GitHub platform rights and third-party licenses remain
+unaffected. Public source availability does not make RepoPilot open source.

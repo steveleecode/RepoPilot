@@ -1,0 +1,13 @@
+RepoPilot — Proprietary Software
+Copyright © 2026 Stephen Lee. All rights reserved.
+
+RepoPilot is licensed under the RepoPilot Proprietary End-User License Agreement,
+version 1.0, effective November 4, 2026, available at docs/legal/EULA.txt.
+Read and accept that agreement before operational use. Public availability of
+the source does not grant an open-source license.
+
+GitHub platform rights, applicable mandatory legal rights, and third-party
+licenses remain unaffected. See docs/legal/THIRD_PARTY_NOTICES.txt for the
+third-party components bundled in the standalone CLI.
+
+Licensing contact: stlee208@gmail.com

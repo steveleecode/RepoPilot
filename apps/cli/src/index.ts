@@ -4,14 +4,28 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { zshCompletion } from "./completion.js";
+import { setupCompletionInTerminal } from "./completion-install.js";
 import { createInterface } from "node:readline/promises";
 import { analyzeRepository, type RepositoryAnalysis } from "@repopilot/analyzer";
 import {
+  runDevelopmentWithDelivery,
+  getDeliveryRequest,
+  getDeliveryReport,
+  isDevelopmentUnfinished,
+  type DeliveryRequest,
+  type DeliveryReport,
   applyChanges,
+  commitDevelopmentTask,
+  getReviewedCommitMessageContext,
+  pushDevelopmentTask,
   getDevelopmentArtifacts,
   proposeChanges,
   validateAppliedChanges,
-  WorkflowEngine
+  WorkflowEngine,
+  initializeDevelopmentTask,
+  getTaskCompletionReport,
+  type TaskCompletionReport
 } from "@repopilot/orchestrator";
 import {
   defaultConfig,
@@ -32,6 +46,7 @@ import {
   type ProviderDefinition,
   type ProviderInspection
 } from "@repopilot/provider";
+import { generateCommitMessage } from "./commit-message.js";
 import { CodexAppServerTransport } from "@repopilot/provider/codex-app-server";
 import {
   loadModelConfig,
@@ -50,8 +65,10 @@ import {
 } from "./codex-setup.js";
 import { tailorCodexAgents } from "./codex-tailoring.js";
 import { generateGithubReinforcement } from "./github-setup.js";
-import { defaultGeminiModel, runInteractiveGeminiChat } from "./gemini-chat.js";
+import { defaultGeminiModel, defaultGroqModel, runInteractiveChat } from "./gemini-chat.js";
 import {
+  loadChatKey,
+  saveChatKey,
   loadGeminiKey,
   prepareGeminiEnv,
   promptGeminiKey,
@@ -116,7 +133,8 @@ const helpTopics: Record<string, string> = {
   setup: `Setup
   repopilot setup --repo <path>             Guided setup in a terminal
   repopilot codex setup --repo <path>       Select agents without full setup
-  repopilot config gemini --repo <path>     Add or rotate a local Gemini key
+  repopilot config groq --repo <path>       Add or rotate a local Groq key (chat default)
+  repopilot config gemini --repo <path>     Add or rotate a local Gemini key (may be slower)
   repopilot config status --repo <path>     Show setup status without secrets
 
 Setup preserves existing files. Gemini tailoring is opt-in. For scripted setup, use --agents id,id and --description text; --ai --yes accepts validated AI focus.`,
@@ -152,6 +170,9 @@ Usage:
   repopilot help [setup|workflow|providers|policy]
   repopilot setup [--repo path] [--agents id,id] [--description text] [--ai] [--yes]
   repopilot version [--json]
+  repopilot completion zsh [--auto-menu]
+  repopilot completion install zsh
+  repopilot settings [--help]
   repopilot doctor [--repo path] [--json]
   repopilot init [--repo path] [--json]
   repopilot scan [--repo path] [--json]
@@ -160,15 +181,16 @@ Usage:
   repopilot providers codex status
   repopilot codex setup [--repo path] [--agents id,id] [--description text] [--ai] [--yes] [--json]
   repopilot codex prompt <feature or bug> [--repo path]
-  repopilot config <setup|gemini|status> [--repo path]
-  repopilot config gemini --stdin [--repo path]
-  repopilot chat [--repo path] [--model name] [--no-context]
+  repopilot config <setup|groq|gemini|status> [--repo path]
+  repopilot config <groq|gemini> --stdin [--repo path]
+  repopilot chat [--repo path] [--provider groq|gemini] [--model name] [--no-context]
   repopilot providers configure ollama --model name [--endpoint url] [--repo path]
   repopilot validate [--repo path] [--json]
   repopilot runs create <objective> [--provider name] [--repo path] [--json]
   repopilot runs list [--repo path] [--json]
   repopilot status <run-id> [--repo path] [--json]
   repopilot resume <run-id> [--repo path] [--json]
+  repopilot resume [run-id] --develop [--approve] [--execute-checks] [--repo path] [--json]
   repopilot policy show [--repo path] [--json]
   repopilot policy validate [--repo path] [--json]
   repopilot policy init [--repo path] [--json]
@@ -176,34 +198,43 @@ Usage:
   repopilot run [--repo path] [--json] [--non-interactive]
                 [--parallel] [--max-workers n] [--auto-commit] [--no-push]
   repopilot run <objective> --provider <fake|ollama|codex> [--repo path] [--json]
+  repopilot run <objective> --provider <ollama|codex> --develop [--approve] [--execute-checks]
+                [--delivery review|commit|push] [--message text|--message-provider codex|gemini|groq]
   repopilot plan <objective> --provider <fake|ollama|codex> [--repo path] [--json]
   repopilot propose <run-id> [--task id] [--file path] [--repo path] [--json]
   repopilot repair <run-id> [--file path] [--repo path] [--json]
   repopilot apply <run-id> [--approve] [--repo path] [--json]
   repopilot verify <run-id> --execute-checks [--repo path] [--json]
   repopilot inspect <run-id> [--repo path] [--json]
+  repopilot commit <run-id> --message <message> [--commit-only|--push] [--approve] [--execute-checks] [--repo path] [--json]
+  repopilot commit <run-id> --message-provider groq|gemini|codex [--push] [--approve] [--execute-checks] [--repo path]
+  repopilot push <run-id> [--approve] [--execute-checks] [--repo path] [--json]
 
 Commands:
   setup     Guided project setup (alias for config setup).
   plan      Create a provider-backed read-only plan (alias for run <objective>).
   version   Print the RepoPilot CLI version.
+  completion Generate zsh completion menus and optional automatic suggestions.
+  settings  Configure personal RepoPilot settings, including shell completion.
+  commit    Commit reviewed changes locally or optionally publish them.
   doctor    Inspect the local RepoPilot environment.
   init      Initialize repository policy using the balanced preset.
   scan      Analyze repository metadata and print evidence-backed facts.
   providers Discover available agent-provider adapters and capabilities.
   codex     Generate multi-agent configuration or a task-specific launch prompt.
-  config    Set up project configuration, GitHub CI when detected, and a local Gemini key.
-  chat      Start a read-only, streaming Gemini advice session.
+  config    Set up project configuration, GitHub CI when detected, and local Groq/Gemini keys.
+  chat      Start streaming advice with Groq (default) or Gemini (may be slower).
   validate  Validate the repository policy configuration.
   runs      Create and list durable workflow runs.
   status    Show a reconstructed workflow run snapshot.
-  resume    Move an interrupted or failed run back to planning.
+  resume    Resume planning, or continue a supervised task with --develop.
   policy    Show, validate, initialize, or update execution policy.
-  run       Preview policy or execute a provider-backed read-only workflow.
+  run       Preview policy, plan work, or supervise development with --develop.
   propose   Ask Ollama or Codex for bounded, reviewable changes to a planned task.
   repair    Propose a bounded repair after failed validation.
   apply     Apply a validated proposal to an isolated Git worktree.
   verify    Execute trusted validation checks in the applied worktree.
+  push      Publish a reviewed local commit after policy, approval, and validation gates.
   inspect   Show the plan, proposal, applied worktree, and validation artifacts.
 
 Global command options:
@@ -214,6 +245,7 @@ Global command options:
 export interface CliProviderRuntime {
   fetcher?: typeof fetch;
   codexTransport?: CodexTransport;
+  commitMessageCodexTurn?: typeof import("@repopilot/provider/codex-app-server").runCodexStructuredTurn;
 }
 
 export async function runCli(
@@ -243,6 +275,56 @@ export async function runCli(
     if (command === "setup")
       return await handleConfigCommand(["setup", ...commandArgs], cwd, runtime);
     if (command === "version") return handleVersionCommand(commandArgs);
+    if (command === "settings") {
+      const { values, positionals } = parseArgs({
+        args: commandArgs,
+        allowPositionals: true,
+        strict: true,
+        options: { help: { type: "boolean", short: "h" } }
+      });
+      if (values.help)
+        return textResult(
+          "Usage: repopilot settings\nConfigure personal zsh completion interactively. Project setup remains repopilot setup."
+        );
+      requireNoPositionals(positionals, "repopilot settings");
+      const result = await setupCompletionInTerminal();
+      return textResult(
+        result === "enabled"
+          ? "RepoPilot completion enabled. Open a new zsh terminal to use it."
+          : result === "already_enabled"
+            ? "RepoPilot completion is already configured."
+            : "Personal settings unchanged."
+      );
+    }
+    if (command === "completion") {
+      const { values, positionals } = parseArgs({
+        args: commandArgs,
+        allowPositionals: true,
+        strict: true,
+        options: { help: { type: "boolean" }, "auto-menu": { type: "boolean" } }
+      });
+      if (values.help)
+        return textResult(
+          "Usage: repopilot completion zsh [--auto-menu]\n       repopilot completion install zsh\nGenerate static shell support, or interactively enable it in your zsh startup file."
+        );
+      if (positionals.length === 2 && positionals[0] === "install" && positionals[1] === "zsh") {
+        if (values["auto-menu"])
+          throw new CliUsageError(
+            "completion install zsh enables automatic menus; omit --auto-menu."
+          );
+        const result = await setupCompletionInTerminal();
+        return textResult(
+          result === "enabled"
+            ? "RepoPilot completion enabled. Open a new zsh terminal to use it."
+            : result === "already_enabled"
+              ? "RepoPilot completion is already configured."
+              : "Completion unchanged."
+        );
+      }
+      if (positionals.length !== 1 || positionals[0] !== "zsh")
+        throw new CliUsageError("Usage: repopilot completion zsh [--auto-menu]");
+      return textResult(zshCompletion(values["auto-menu"] ?? false));
+    }
     if (command === "doctor") return handleDoctorCommand(commandArgs, cwd);
     if (command === "init") return await handlePolicyCommand(["init", ...commandArgs], cwd);
     if (command === "scan") return await handleScanCommand(commandArgs, cwd);
@@ -256,7 +338,7 @@ export async function runCli(
     if (command === "policy") return await handlePolicyCommand(commandArgs, cwd);
     if (command === "runs") return await handleRunsCommand(commandArgs, cwd);
     if (command === "status") return await handleStatusCommand(commandArgs, cwd);
-    if (command === "resume") return await handleResumeCommand(commandArgs, cwd);
+    if (command === "resume") return await handleResumeCommand(commandArgs, cwd, runtime);
     if (command === "run") return await handleRunCommand(commandArgs, cwd, runtime);
     if (command === "plan") return await handleRunCommand(commandArgs, cwd, runtime, true);
     if (
@@ -264,9 +346,11 @@ export async function runCli(
       command === "repair" ||
       command === "apply" ||
       command === "verify" ||
-      command === "inspect"
+      command === "inspect" ||
+      command === "commit" ||
+      command === "push"
     ) {
-      return await handleDevelopmentCommand(command, commandArgs, cwd);
+      return await handleDevelopmentCommand(command, commandArgs, cwd, runtime);
     }
     throw new CliUsageError(`Unknown command: ${command}`);
   } catch (error) {
@@ -366,7 +450,7 @@ async function handleConfigCommand(
     }
   });
   if (values.help) return textResult(helpText);
-  requireNoPositionals(positionals, "repopilot config <setup|gemini|status> [--repo path]");
+  requireNoPositionals(positionals, "repopilot config <setup|groq|gemini|status> [--repo path]");
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
   if (subcommand === "status") {
     if (
@@ -381,27 +465,35 @@ async function handleConfigCommand(
     const report = {
       policyConfigured: existsSync(path.join(repositoryRoot, repoPilotConfigPath)),
       codexConfigured: existsSync(path.join(repositoryRoot, ".codex/config.toml")),
-      geminiConfigured: Boolean(await loadGeminiKey(repositoryRoot))
+      defaultChatProvider: "groq",
+      groqConfigured: Boolean(
+        process.env.GROQ_API_KEY || (await loadChatKey(repositoryRoot, "groq"))
+      ),
+      geminiConfigured: Boolean(process.env.GEMINI_API_KEY || (await loadGeminiKey(repositoryRoot)))
     };
     return values.json
       ? jsonResult(cliExitCode.success, { ok: true, command: "config status", ...report })
       : textResult(
-          `RepoPilot configuration\nPolicy: ${report.policyConfigured ? "configured" : "missing"}\nCodex agents: ${report.codexConfigured ? "configured" : "missing"}\nGemini key: ${report.geminiConfigured ? "configured" : "missing"}`
+          `RepoPilot configuration\nPolicy: ${report.policyConfigured ? "configured" : "missing"}\nCodex agents: ${report.codexConfigured ? "configured" : "missing"}\nChat default: Groq\nGroq key: ${report.groqConfigured ? "configured" : "missing"}\nGemini key: ${report.geminiConfigured ? "configured" : "missing"}`
         );
   }
   if (values.json) throw new CliUsageError("Interactive configuration does not support --json.");
-  if (subcommand === "gemini") {
+  if (subcommand === "gemini" || subcommand === "groq") {
+    const label = subcommand === "groq" ? "Groq" : "Gemini";
     if (values["skip-gemini"] || values.agents || values.description || values.ai || values.yes)
       throw new CliUsageError("--skip-gemini is only valid with config setup.");
     const key = values.stdin
-      ? await readKeyFromStdin(process.stdin)
-      : await promptGeminiKey(process.stdin, process.stdout);
-    if (!key) return textResult("Gemini key unchanged.");
-    await saveGeminiKey(repositoryRoot, key);
-    return textResult("Gemini key saved to .repopilot/.env (value hidden).");
+      ? await readKeyFromStdin(process.stdin, label)
+      : await promptGeminiKey(process.stdin, process.stdout, label);
+    if (!key) return textResult(`${label} key unchanged.`);
+    await saveChatKey(repositoryRoot, key, subcommand);
+    return textResult(
+      `${label} key saved to .repopilot/.env (value hidden).${subcommand === "gemini" ? " Gemini may be slower than Groq. Use repopilot chat --provider gemini to select it." : " Groq is the default chat provider. Run repopilot chat."}`
+    );
   }
   if (subcommand === "setup") {
-    if (values.stdin) throw new CliUsageError("--stdin is only valid with config gemini.");
+    if (values.stdin)
+      throw new CliUsageError("--stdin is only valid with config groq or config gemini.");
     await prepareGeminiEnv(repositoryRoot);
     const policyCreated = !existsSync(path.join(repositoryRoot, repoPilotConfigPath));
     if (policyCreated) await writeRepositoryConfig(repositoryRoot, defaultConfig("balanced"));
@@ -431,10 +523,10 @@ async function handleConfigCommand(
     );
     const github = await generateGithubReinforcement(repositoryRoot);
     return textResult(
-      `RepoPilot setup complete.\nPolicy: ${policyCreated ? "created" : "existing"}\nCodex files created: ${codex.created.join(", ") || "none"}\nCodex files skipped: ${codex.skipped.join(", ") || "none"}\nExisting unselected agents left untouched: ${codex.existingUnselected.join(", ") || "none"}\nGitHub: ${github.detected ? "detected" : "not detected"}\nCI files created: ${github.created.join(", ") || "none"}\nCI files skipped: ${github.skipped.join(", ") || "none"}\n${github.guidance.join("\n")}${github.guidance.length ? "\n" : ""}Gemini key: ${geminiConfigured ? "configured" : "not configured; run repopilot config gemini"}`
+      `RepoPilot setup complete.\nPolicy: ${policyCreated ? "created" : "existing"}\nCodex files created: ${codex.created.join(", ") || "none"}\nCodex files skipped: ${codex.skipped.join(", ") || "none"}\nExisting unselected agents left untouched: ${codex.existingUnselected.join(", ") || "none"}\nGitHub: ${github.detected ? "detected" : "not detected"}\nCI files created: ${github.created.join(", ") || "none"}\nCI files skipped: ${github.skipped.join(", ") || "none"}\n${github.guidance.join("\n")}${github.guidance.length ? "\n" : ""}Chat default: Groq; run repopilot config groq to configure chat.\nGemini key: ${geminiConfigured ? "configured" : "not configured; run repopilot config gemini"}`
     );
   }
-  throw new CliUsageError("Usage: repopilot config <setup|gemini|status> [--repo path]");
+  throw new CliUsageError("Usage: repopilot config <setup|groq|gemini|status> [--repo path]");
 }
 
 async function handleChatCommand(
@@ -448,19 +540,32 @@ async function handleChatCommand(
     strict: true,
     options: {
       ...commonOptions(),
+      provider: { type: "string" },
       model: { type: "string" },
       "no-context": { type: "boolean" }
     }
   });
   if (values.help) return textResult(helpText);
-  requireNoPositionals(positionals, "repopilot chat [--repo path] [--model name] [--no-context]");
+  requireNoPositionals(
+    positionals,
+    "repopilot chat [--repo path] [--provider groq|gemini] [--model name] [--no-context]"
+  );
   if (values.json) throw new CliUsageError("Interactive chat does not support --json.");
+  const provider = values.provider ?? "groq";
+  if (provider !== "groq" && provider !== "gemini")
+    throw new CliUsageError("Chat provider must be groq or gemini.");
   if (!process.stdin.isTTY) throw new CliUsageError("Interactive chat requires a terminal.");
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
-  await runInteractiveGeminiChat({
+  await runInteractiveChat({
     repositoryRoot,
-    apiKey: process.env.GEMINI_API_KEY || (await loadGeminiKey(repositoryRoot)) || "",
-    model: stringOption(values.model, "--model") ?? defaultGeminiModel,
+    provider,
+    apiKey:
+      process.env[`${provider.toUpperCase()}_API_KEY`] ||
+      (await loadChatKey(repositoryRoot, provider)) ||
+      "",
+    model:
+      stringOption(values.model, "--model") ??
+      (provider === "groq" ? defaultGroqModel : defaultGeminiModel),
     includeContext: !values["no-context"],
     input: process.stdin,
     output: process.stdout,
@@ -533,9 +638,10 @@ async function handleCodexCommand(
 }
 
 async function handleDevelopmentCommand(
-  command: "propose" | "repair" | "apply" | "verify" | "inspect",
+  command: "propose" | "repair" | "apply" | "verify" | "inspect" | "commit" | "push",
   args: string[],
-  cwd: string
+  cwd: string,
+  runtime: CliProviderRuntime
 ): Promise<CliResult> {
   const { values, positionals } = parseArgs({
     args,
@@ -543,20 +649,77 @@ async function handleDevelopmentCommand(
     strict: true,
     options: {
       ...commonOptions(),
+      "message-provider": { type: "string" },
+      message: { type: "string" },
       task: { type: "string" },
       file: { type: "string", multiple: true },
       approve: { type: "boolean" },
+      push: { type: "boolean" },
+      "commit-only": { type: "boolean" },
       "execute-checks": { type: "boolean" }
     }
   });
   if (values.help) return textResult(helpText);
+  if (values["message-provider"] && command !== "commit")
+    throw new CliUsageError("--message-provider applies only to commit.");
+  if (values.push && values["commit-only"])
+    throw new CliUsageError("Choose --push or --commit-only, not both.");
+  if ((values.push || values["commit-only"]) && command !== "commit")
+    throw new CliUsageError("--push and --commit-only apply only to commit.");
+  if (values["execute-checks"] && command === "commit" && !values.push)
+    throw new CliUsageError("commit --execute-checks requires --push.");
   if (positionals.length !== 1 || !positionals[0])
     throw new CliUsageError(`Usage: repopilot ${command} <run-id>`);
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
   const store = new WorkflowStore(repositoryRoot);
   const runId = positionals[0];
   let result: unknown;
-  if (command === "propose" || command === "repair") {
+  if (command === "commit") {
+    let message = stringOption(values.message, "--message");
+    const provider = values["message-provider"];
+    if (provider && !["groq", "gemini", "codex"].includes(provider))
+      throw new CliUsageError("Commit message provider must be groq, gemini or codex.");
+    if (message && provider)
+      throw new CliUsageError("Choose --message or --message-provider, not both.");
+    if (!message && !provider)
+      throw new CliUsageError("Usage: repopilot commit <run-id> --message <message> [--approve]");
+    if (provider)
+      message = await deliveryRuntime(repositoryRoot, runtime).generateMessage(
+        provider as "groq" | "gemini" | "codex",
+        await getReviewedCommitMessageContext(await store.loadRun(runId))
+      );
+    result = await commitDevelopmentTask({
+      store,
+      runId,
+      message: message!,
+      approval: values.approve ?? false
+    });
+    if (values.push) {
+      const committed = result;
+      try {
+        result = {
+          commit: committed,
+          push: await pushDevelopmentTask({
+            store,
+            runId,
+            approval: values.approve ?? false,
+            executeChecks: values["execute-checks"] ?? false
+          })
+        };
+      } catch (error) {
+        throw new Error(
+          `Local commit is preserved. Push did not complete or could not be confirmed; inspect this run before retrying repopilot push. ${error instanceof Error ? error.message : "Push failed."}`
+        );
+      }
+    }
+  } else if (command === "push") {
+    result = await pushDevelopmentTask({
+      store,
+      runId,
+      approval: values.approve ?? false,
+      executeChecks: values["execute-checks"] ?? false
+    });
+  } else if (command === "propose" || command === "repair") {
     const run = await store.loadRun(runId);
     const config = run.provider === "ollama" ? await loadModelConfig(repositoryRoot) : undefined;
     if (run.provider === "ollama" && !config?.ollama)
@@ -913,6 +1076,56 @@ async function handlePolicyCommand(args: string[], cwd: string): Promise<CliResu
   throw new CliUsageError(`Unknown policy command: ${subcommand}`);
 }
 
+function parseDeliveryOptions(values: {
+  delivery?: string | undefined;
+  message?: string | undefined;
+  "message-provider"?: string | undefined;
+}): DeliveryRequest | undefined {
+  if (!values.delivery && !values.message && !values["message-provider"]) return undefined;
+  if (!values.delivery || !["review", "commit", "push"].includes(values.delivery))
+    throw new CliUsageError("Use --delivery review, commit, or push.");
+  if (values.delivery === "review") {
+    if (values.message || values["message-provider"])
+      throw new CliUsageError("Review-only delivery does not accept commit message options.");
+    return { mode: "review" };
+  }
+  if (Boolean(values.message) === Boolean(values["message-provider"]))
+    throw new CliUsageError(
+      "Choose --message or --message-provider codex|gemini|groq for automatic Git delivery."
+    );
+  if (
+    values["message-provider"] &&
+    !["codex", "gemini", "groq"].includes(values["message-provider"])
+  )
+    throw new CliUsageError("Commit message provider must be codex, gemini or groq.");
+  return {
+    mode: values.delivery as "commit" | "push",
+    ...(values.message
+      ? { message: values.message }
+      : { messageProvider: values["message-provider"] as "codex" | "gemini" | "groq" })
+  };
+}
+function deliveryRuntime(repositoryRoot: string, runtime: CliProviderRuntime) {
+  return {
+    generateMessage: async (
+      provider: "codex" | "gemini" | "groq",
+      context: import("@repopilot/orchestrator").CommitMessageContext
+    ) =>
+      generateCommitMessage(provider, context, {
+        ...(provider !== "codex"
+          ? {
+              apiKey:
+                process.env[`${provider.toUpperCase()}_API_KEY`] ||
+                (await loadChatKey(repositoryRoot, provider)) ||
+                ""
+            }
+          : {}),
+        ...(runtime.fetcher ? { fetcher: runtime.fetcher } : {}),
+        ...(runtime.commitMessageCodexTurn ? { codexTurn: runtime.commitMessageCodexTurn } : {})
+      })
+  };
+}
+
 async function handleRunCommand(
   args: string[],
   cwd: string,
@@ -930,10 +1143,31 @@ async function handleRunCommand(
       "auto-commit": { type: "boolean" },
       "no-push": { type: "boolean" },
       "non-interactive": { type: "boolean" },
+      delivery: { type: "string" },
+      message: { type: "string" },
+      "message-provider": { type: "string" },
+      develop: { type: "boolean" },
+      approve: { type: "boolean" },
+      "execute-checks": { type: "boolean" },
       provider: { type: "string" }
     }
   });
   if (values.help) return textResult(helpText);
+  const deliveryRequest = parseDeliveryOptions(values);
+  if (deliveryRequest && !values.develop)
+    throw new CliUsageError("Delivery options require run --develop.");
+  if (values.develop && (values["auto-commit"] || values["no-push"]))
+    throw new CliUsageError(
+      "Use --delivery commit or --delivery push with --develop; legacy policy-preview flags cannot authorize delivery."
+    );
+  if (requireObjective && values.develop)
+    throw new CliUsageError(
+      "Use run --develop for supervised development; plan remains read-only."
+    );
+  if ((values.approve || values["execute-checks"]) && !values.develop)
+    throw new CliUsageError("--approve and --execute-checks require --develop.");
+  if (values.develop && positionals.length === 0)
+    throw new CliUsageError("--develop requires a task objective.");
   if (requireObjective && positionals.length === 0)
     throw new CliUsageError(
       "Usage: repopilot plan <objective> --provider <codex|ollama|fake> [--repo path]"
@@ -947,10 +1181,41 @@ async function handleRunCommand(
     if (!providerId) {
       throw new CliUsageError("Provider-backed runs require --provider.");
     }
+    if (values.develop && providerId !== "codex" && providerId !== "ollama")
+      throw new CliUsageError(
+        "Development tasks require --provider codex or --provider ollama. Gemini supports chat and setup tailoring only."
+      );
     const objective = positionals.join(" ").trim();
     if (!objective) throw new CliUsageError("Run objective is required.");
     const store = new WorkflowStore(repositoryRoot);
     const created = await store.createRun({ objective, provider: providerId });
+    if (values.develop) {
+      await initializeDevelopmentTask(store, created.id);
+      const config = await loadModelConfig(repositoryRoot);
+      const outcome = await runDevelopmentWithDelivery(
+        {
+          ...deliveryRuntime(repositoryRoot, runtime),
+          ...(deliveryRequest ? { request: deliveryRequest } : {}),
+          store,
+          providers: await configuredProviders(repositoryRoot, runtime),
+          policy: resolved.execution,
+          ...(config?.ollama ? { ollama: config.ollama } : {}),
+          approve: values.approve ?? false,
+          executeChecks: values["execute-checks"] ?? false,
+          ...(!values.json
+            ? { onStage: (stage: string) => process.stderr.write(`RepoPilot: ${stage}\n`) }
+            : {})
+        },
+        created.id
+      );
+      return taskReportResult(
+        outcome.report,
+        values.json ?? false,
+        "run",
+        repositoryRoot,
+        outcome.delivery
+      );
+    }
     const outcome = await new WorkflowEngine({
       store,
       providers: await configuredProviders(repositoryRoot, runtime),
@@ -1046,27 +1311,152 @@ async function handleStatusCommand(args: string[], cwd: string): Promise<CliResu
   }
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
   const run = await new WorkflowStore(repositoryRoot).loadRun(positionals[0]);
+  const development = getTaskCompletionReport(run);
+  const artifacts = getDevelopmentArtifacts(run);
+  const publishing = {
+    status: artifacts.push ? "pushed" : artifacts.pushIntent ? "needs_inspection" : "not_requested",
+    freshness: "last_recorded",
+    artifactId: artifacts.push?.id ?? artifacts.pushIntent?.id ?? null,
+    result: artifacts.push?.metadata?.result ?? artifacts.pushIntent?.metadata?.result ?? null
+  };
   return values.json
-    ? jsonResult(cliExitCode.success, { ok: true, command: "status", repositoryRoot, run })
-    : textResult(formatRun(run));
+    ? jsonResult(cliExitCode.success, {
+        ok: true,
+        command: "status",
+        repositoryRoot,
+        run,
+        ...(development
+          ? {
+              development,
+              publishing,
+              deliveryRequest: getDeliveryRequest(run),
+              delivery: getDeliveryReport(run),
+              reportFreshness: "last_recorded"
+            }
+          : {})
+      })
+    : textResult(
+        development
+          ? `${formatTaskReport(development)}\nPublishing: ${publishing.status} (last recorded; remote not rechecked).${getDeliveryReport(run) ? `\nDelivery: ${getDeliveryReport(run)!.mode}; ${getDeliveryReport(run)!.status} at ${getDeliveryReport(run)!.stage}. ${getDeliveryReport(run)!.summary}` : ""}\nReport is last recorded; resume --develop rechecks local freshness.\nPlanning journal status: ${run.status}`
+          : formatRun(run)
+      );
 }
 
-async function handleResumeCommand(args: string[], cwd: string): Promise<CliResult> {
+async function handleResumeCommand(
+  args: string[],
+  cwd: string,
+  runtime: CliProviderRuntime
+): Promise<CliResult> {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
     strict: true,
-    options: commonOptions()
+    options: {
+      ...commonOptions(),
+      delivery: { type: "string" },
+      message: { type: "string" },
+      "message-provider": { type: "string" },
+      develop: { type: "boolean" },
+      approve: { type: "boolean" },
+      "execute-checks": { type: "boolean" }
+    }
   });
   if (values.help) return textResult(helpText);
-  if (positionals.length !== 1 || !positionals[0]) {
+  const deliveryRequest = parseDeliveryOptions(values);
+  if (deliveryRequest && !values.develop)
+    throw new CliUsageError("Delivery options require resume --develop.");
+  if ((values.approve || values["execute-checks"]) && !values.develop)
+    throw new CliUsageError("Development authorization flags require --develop.");
+  if (positionals.length > 1 || (!values.develop && !positionals[0])) {
     throw new CliUsageError("Usage: repopilot resume <run-id> [--repo path] [--json]");
   }
   const repositoryRoot = resolveRepository(stringOption(values.repo, "--repo"), cwd);
-  const run = await new WorkflowStore(repositoryRoot).resumeRun(positionals[0]);
+  const store = new WorkflowStore(repositoryRoot);
+  if (values.develop) {
+    const runId = positionals[0] ?? (await store.listRuns()).find(isDevelopmentUnfinished)?.id;
+    if (!runId)
+      throw new CliUsageError(
+        "No unfinished development task found. Supply a run ID or start run --develop."
+      );
+    const policy = resolvePolicy({
+      repositoryConfig: await loadRepositoryConfig(repositoryRoot)
+    }).execution;
+    const config = await loadModelConfig(repositoryRoot);
+    const outcome = await runDevelopmentWithDelivery(
+      {
+        ...deliveryRuntime(repositoryRoot, runtime),
+        ...(deliveryRequest ? { request: deliveryRequest } : {}),
+        store,
+        providers: await configuredProviders(repositoryRoot, runtime),
+        policy,
+        ...(config?.ollama ? { ollama: config.ollama } : {}),
+        approve: values.approve ?? false,
+        executeChecks: values["execute-checks"] ?? false,
+        ...(!values.json
+          ? { onStage: (stage: string) => process.stderr.write(`RepoPilot: ${stage}\n`) }
+          : {})
+      },
+      runId
+    );
+    return taskReportResult(
+      outcome.report,
+      values.json ?? false,
+      "resume",
+      repositoryRoot,
+      outcome.delivery
+    );
+  }
+  const run = await store.resumeRun(positionals[0]!);
   return values.json
     ? jsonResult(cliExitCode.success, { ok: true, command: "resume", repositoryRoot, run })
     : textResult(`Resumed workflow run ${run.id}\n${formatRun(run)}`);
+}
+
+function taskReportResult(
+  report: TaskCompletionReport,
+  json: boolean,
+  command: string,
+  repositoryRoot: string,
+  delivery?: DeliveryReport
+): CliResult {
+  const exitCode =
+    (report.status === "review_ready" || report.status === "committed") &&
+    (!delivery || delivery.status === "completed")
+      ? cliExitCode.success
+      : cliExitCode.workflowError;
+  return json
+    ? jsonResult(exitCode, {
+        ok: exitCode === cliExitCode.success,
+        command,
+        repositoryRoot,
+        report,
+        ...(delivery ? { delivery } : {})
+      })
+    : textResult(
+        `${formatTaskReport(report)}${delivery ? `\nDelivery: ${delivery.mode}; ${delivery.status} at ${delivery.stage}. ${delivery.summary}${delivery.nextCommand ? `\nNext: ${delivery.nextCommand}` : ""}` : ""}`,
+        exitCode
+      );
+}
+
+function formatTaskReport(report: TaskCompletionReport): string {
+  return [
+    `RepoPilot task ${report.runId}`,
+    `Status: ${report.status}`,
+    `Stage: ${report.stage}`,
+    report.summary,
+    ...(report.worktree ? [`Worktree: ${report.worktree}`] : []),
+    `Validation: ${report.validation.status}; independent review: ${report.review.status}`,
+    ...report.acceptanceCriteria.map(
+      (criterion) =>
+        `- ${criterion.description}: ${criterion.judgment} (executable proof not mapped)`
+    ),
+    ...report.review.findings.map(
+      (finding) =>
+        `- ${finding.severity}: ${finding.file}:${finding.line}: ${finding.description} [${finding.verificationStatus}]`
+    ),
+    ...report.limitations.map((limitation) => `Limitation: ${limitation}`),
+    ...(report.nextCommand ? [`Next: ${report.nextCommand}`] : [])
+  ].join("\n");
 }
 
 function parseRunOverrides(values: {

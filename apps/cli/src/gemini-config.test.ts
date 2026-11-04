@@ -49,6 +49,21 @@ describe("local Gemini configuration", () => {
     expect(key).toBe("test-gemini-key-123456789");
   });
 
+  it("accepts dotted keys through stdin and persisted local config", async () => {
+    const root = await fixture();
+    const key = "test.gemini.key-123456789";
+    expect(await readKeyFromStdin(Readable.from([`${key}\n`]))).toBe(key);
+    await saveGeminiKey(root, key);
+    expect(await loadGeminiKey(root)).toBe(key);
+  });
+
+  it("rejects environment-file injection in a key", async () => {
+    const root = await fixture();
+    await expect(saveGeminiKey(root, "valid-key-123456789\nOTHER=value")).rejects.toThrow(
+      "Gemini API key must be a single"
+    );
+  });
+
   it("rejects symlinks and a Git-tracked secret path", async () => {
     const outside = await fixture();
     const linked = await fixture();

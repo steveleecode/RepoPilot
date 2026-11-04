@@ -62,15 +62,22 @@ function assertUntracked(repositoryRoot: string): void {
   if (result.error) throw new Error("Could not verify Git tracking for .repopilot/.env.");
 }
 
-function validateKey(key: string): string {
+function validateKey(key: string, provider = "Gemini"): string {
   const trimmed = key.trim();
-  if (!/^[A-Za-z0-9_-]{16,512}$/.test(trimmed))
-    throw new Error("Gemini API key must be a single 16–512 character token.");
+  if (!/^[A-Za-z0-9_.-]{16,512}$/.test(trimmed))
+    throw new Error(
+      `${provider} API key must be a single 16–512 character token (letters, numbers, _, -, or .).`
+    );
   return trimmed;
 }
 
-export async function saveGeminiKey(repositoryRoot: string, key: string): Promise<void> {
-  const value = validateKey(key);
+export async function saveChatKey(
+  repositoryRoot: string,
+  key: string,
+  provider: "groq" | "gemini"
+): Promise<void> {
+  const variable = `${provider.toUpperCase()}_API_KEY`;
+  const value = validateKey(key, provider === "groq" ? "Groq" : "Gemini");
   const directory = await ensureLocalConfigDirectory(repositoryRoot);
   const target = path.join(directory, envFile);
   const kind = await typeOf(target);
@@ -83,9 +90,9 @@ export async function saveGeminiKey(repositoryRoot: string, key: string): Promis
     if (Buffer.byteLength(existing) > maxEnvBytes) throw new Error(".repopilot/.env is too large.");
     lines = existing
       .split(/\r?\n/)
-      .filter((line) => line.length > 0 && !/^\s*GEMINI_API_KEY\s*=/.test(line));
+      .filter((line) => line.length > 0 && !new RegExp(`^\\s*${variable}\\s*=`).test(line));
   }
-  lines.push(`GEMINI_API_KEY=${value}`);
+  lines.push(`${variable}=${value}`);
   const temporary = path.join(directory, `.env.tmp-${crypto.randomUUID()}`);
   try {
     await writeFile(temporary, `${lines.join("\n")}\n`, { mode: 0o600, flag: "wx" });
@@ -97,7 +104,10 @@ export async function saveGeminiKey(repositoryRoot: string, key: string): Promis
   }
 }
 
-export async function loadGeminiKey(repositoryRoot: string): Promise<string | null> {
+export async function loadChatKey(
+  repositoryRoot: string,
+  provider: "groq" | "gemini"
+): Promise<string | null> {
   const directory = path.join(repositoryRoot, localDirectory);
   if ((await typeOf(directory)) === "symlink")
     throw new Error("Refusing to use a symlinked .repopilot directory.");
@@ -109,24 +119,28 @@ export async function loadGeminiKey(repositoryRoot: string): Promise<string | nu
   const { size } = await lstat(target);
   if (size > maxEnvBytes) throw new Error(".repopilot/.env is too large.");
   const content = await readFile(target, "utf8");
-  const match = content.match(/^GEMINI_API_KEY=(.+)$/m);
-  return match ? validateKey(match[1] ?? "") : null;
+  const match = content.match(new RegExp(`^${provider.toUpperCase()}_API_KEY=(.+)$`, "m"));
+  return match ? validateKey(match[1] ?? "", provider === "groq" ? "Groq" : "Gemini") : null;
 }
 
-export async function readKeyFromStdin(input: NodeJS.ReadableStream): Promise<string> {
+export async function readKeyFromStdin(
+  input: NodeJS.ReadableStream,
+  provider = "Gemini"
+): Promise<string> {
   let value = "";
   for await (const chunk of input) {
     if (typeof chunk !== "string" && !Buffer.isBuffer(chunk))
-      throw new Error("Gemini API key input must be text.");
+      throw new Error(`${provider} API key input must be text.`);
     value += chunk.toString();
-    if (value.length > 1_024) throw new Error("Gemini API key input is too large.");
+    if (value.length > 1_024) throw new Error(`${provider} API key input is too large.`);
   }
-  return validateKey(value);
+  return validateKey(value, provider);
 }
 
 export async function promptGeminiKey(
   input: ReadStream,
-  output: WriteStream
+  output: WriteStream,
+  provider = "Gemini"
 ): Promise<string | null> {
   if (!input.isTTY || !output.isTTY)
     throw new Error("A terminal is required for hidden key entry.");
@@ -141,7 +155,7 @@ export async function promptGeminiKey(
       if (error) reject(error);
       else {
         try {
-          resolve(value ? validateKey(value) : null);
+          resolve(value ? validateKey(value, provider) : null);
         } catch (validationError) {
           reject(
             validationError instanceof Error
@@ -154,7 +168,7 @@ export async function promptGeminiKey(
     const onData = (chunk: Buffer) => {
       for (const character of chunk.toString("utf8")) {
         if (character === "\r" || character === "\n") return finish();
-        if (character === "\u0003") return finish(new Error("Gemini key entry cancelled."));
+        if (character === "\u0003") return finish(new Error(`${provider} key entry cancelled.`));
         if (character === "\u007f" || character === "\b") {
           if (value) {
             value = value.slice(0, -1);
@@ -168,9 +182,13 @@ export async function promptGeminiKey(
         }
       }
     };
-    output.write("Gemini API key (hidden; Enter to skip): ");
+    output.write(`${provider} API key (hidden; Enter to skip): `);
     input.setRawMode(true);
     input.resume();
     input.on("data", onData);
   });
 }
+
+export const saveGeminiKey = (root: string, key: string): Promise<void> =>
+  saveChatKey(root, key, "gemini");
+export const loadGeminiKey = (root: string): Promise<string | null> => loadChatKey(root, "gemini");

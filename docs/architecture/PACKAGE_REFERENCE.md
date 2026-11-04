@@ -30,8 +30,9 @@ Responsibilities:
 - Execute durable read-only planning workflows through fake, Ollama, or Codex providers.
 - Propose bounded changes, inspect them, apply in isolated worktrees, validate, and request repairs.
 
-The CLI does not yet commit, push, or open pull requests. Codex uses a local App Server process and
-Codex-managed authentication.
+The CLI supports explicit policy-gated commits and optional pushes of reviewed changes to dedicated
+branches; it does not open pull requests. Codex uses a local App Server process and Codex-managed
+authentication. See the CLI reference for publishing authentication limits.
 
 ## `packages/shared`
 
@@ -203,8 +204,9 @@ Responsibilities:
   worktrees, and run explicit policy-selected validation through the trusted executor.
 
 The planning engine remains read-only. Separate development operations make proposals reviewable
-before apply and require explicit approval to execute target tooling. Commits and pushes remain later
-phases.
+before apply and require explicit approval to execute target tooling. The supervised task runner adds
+durable recovery, independent complete-diff review, and completion reports. Separate commit/push
+operations recheck current policy and freshness before publishing the recorded reviewed commit.
 
 ## `packages/ui`
 
