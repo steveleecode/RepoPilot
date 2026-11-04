@@ -1,7 +1,8 @@
 # Implementation Roadmap
 
-This roadmap reflects the architecture implemented through Phase 6 and the decision to make a local
-coding model the first live AI integration.
+Updated November 4, 2026. This is the engineering roadmap. The
+[product feature roadmap](FEATURE_ROADMAP.md) tracks the prioritized growth features and four
+product release stages from the earlier analysis, including completed slices and remaining work.
 
 The product principle is:
 
@@ -20,6 +21,18 @@ process, approve an action, change workflow state, or perform a Git operation.
 | 4     | Vendor-neutral agent-provider abstraction                    | Complete |
 | 5     | Deterministic workflow engine and policy-aware task batching | Complete |
 | 6     | Trusted, bounded local command-execution boundary            | Complete |
+
+## Current Delivery Status
+
+| Phase | Status                              | Evidence and remaining scope                                                                                                                    |
+| ----- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 7     | Implemented planning slice          | Codex/Ollama schema-validated planning; see provider and orchestrator packages.                                                                 |
+| 8     | Implemented context/proposal slice  | Bounded separate source broker and validated proposals; see provider/change-broker and orchestrator/development.                                |
+| 9     | Implemented apply slice             | Policy-gated isolated worktrees and stale-base checks. Interrupted applies require inspection.                                                  |
+| 10    | Implemented validation/repair slice | Authorized trusted checks and bounded failed-check repair; criterion-specific executable proof remains.                                         |
+| 11    | Partial                             | Independent complete-diff review, local commits, and explicit policy-gated pushes delivered. Draft PRs, trusted signing, and cleanup remain.    |
+| 12    | Partial                             | Stage progress, JSON reports, inspect/status, and durable resume delivered. Pause/cancel, interactive approvals, and explicit cleanup remain.   |
+| 13    | Partial                             | Standalone archive and clean-install smoke test delivered. Platform matrix, migration, expanded compatibility, and additional providers remain. |
 
 ## Revised Remaining Phases
 
@@ -63,7 +76,8 @@ response into validated change intentions.
 
 This phase used the separate read-only context broker approach, documented in
 `docs/decisions/0005-source-context-broker.md`. The primary RepoPilot process does not load target
-source during context assembly. The broker sends bounded context only to loopback Ollama.
+source during context assembly. The broker sends bounded context to configured loopback Ollama or
+explicitly selected Codex.
 
 The first cut supported Ollama change generation. v0.2.0 added a standalone Codex App Server
 transport and reused the same bounded context broker and proposal validator for Codex changes.
@@ -134,7 +148,7 @@ Exit criteria:
 - Every executed command maps to a trusted catalog entry and a policy decision.
 - Retry behavior survives restart and never repeats an already completed side effect.
 
-### Phase 11: Review And Git Lifecycle
+### Phase 11: Review And Git Lifecycle (Review, commit, and push slices implemented)
 
 Complete the local development workflow after validation succeeds.
 
@@ -157,6 +171,10 @@ Exit criteria:
 
 ### Phase 12: Terminal Workflow Experience
 
+Implemented slices include stage progress, structured reports, inspection, durable resume with
+saved delivery intent, and zsh command/option menus with descriptions and optional automatic popup.
+Pause/cancel, interactive approvals, broader shell support, and explicit cleanup remain incomplete.
+
 Make the full agentic loop understandable and controllable from the terminal.
 
 Scope:
@@ -176,6 +194,12 @@ Exit criteria:
 - Interrupted runs resume from durable state, and automation can consume the same state through JSON.
 
 ### Phase 13: Distribution And Provider Hardening
+
+Delivered distribution slices include the standalone archive, clean-install smoke test, and
+default-on completion for supported global zsh installs with opt-out and CI safeguards. Personal
+`settings` offers interactive setup separately from project configuration. Automatic and interactive
+paths are verified with isolated local npm installs; broader platform/provider compatibility work
+below remains outstanding.
 
 Prepare RepoPilot for reliable installation and additional local or remote providers.
 
@@ -208,6 +232,16 @@ Exit criteria:
 
 ## Recommended Next Increment
 
-Complete Phase 11 review and Git lifecycle, then Phase 12 terminal ergonomics. The current
-development workflow can plan, propose, apply in an isolated worktree, validate, and propose bounded
-repairs, but it does not commit, push, open PRs, or offer automatic interactive approval.
+The supervised workflow supports independent complete-diff review, policy-gated local commits, and
+optional publishing of the recorded commit to its allowed branch. Runs default to review-only and
+can opt into `--delivery commit` or `--delivery push`; standalone commits default to commit-only.
+Saved delivery intent and validated Codex/Gemini-generated or explicit messages survive authorization
+pauses. Current policy and per-invocation approvals still govern each Git action. Publishing has
+separate destination, freshness, and validation gates. Push tests use local bare remotes and message
+provider tests use offline substitutes; private HTTPS credential-helper authentication remains
+unsupported.
+
+Next complete Phase 12 terminal controls, including cancellation and explicit worktree cleanup,
+then improve executable acceptance evidence and finding reproduction. Pull-request creation,
+trusted signing, and automatic interactive approval remain unimplemented. See the
+[product feature roadmap](FEATURE_ROADMAP.md) for the broader priorities and measurement plan.

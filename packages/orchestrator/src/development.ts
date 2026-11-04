@@ -13,6 +13,7 @@ import {
 } from "@repopilot/executor";
 import { authorizeGitAction, type ExecutionPolicy, type ValidationCheck } from "@repopilot/policy";
 import { type OllamaConfig } from "@repopilot/provider/ollama";
+import { independentReviewSchema, type IndependentReview } from "@repopilot/provider/review";
 import { WorkflowStore, type RunSnapshot } from "@repopilot/workflow";
 import { parsePlanningIntent, type PlanningIntent } from "./index.js";
 
@@ -108,7 +109,7 @@ export function validateChangeProposal(raw: unknown, plan: PlanningIntent): Chan
   return proposal;
 }
 
-function artifactOf(run: RunSnapshot, type: string) {
+export function artifactOf(run: RunSnapshot, type: string) {
   return [...run.artifacts].reverse().find((item) => item.metadata?.type === type);
 }
 
@@ -191,6 +192,7 @@ export async function proposeChanges(input: {
     objective,
     taskId: task.id,
     taskObjective: task.objective,
+    completionCriteria: task.completionCriteria,
     readSet: task.readSet,
     writeSet: task.writeSet,
     files: input.files ?? [],
@@ -221,7 +223,7 @@ export async function proposeChanges(input: {
   return proposal;
 }
 
-function redactDiagnostics(value: string): string {
+export function redactDiagnostics(value: string): string {
   return value.replace(/((?:password|token|api[_-]?key|secret)\s*[:=]\s*)\S+/giu, "$1[REDACTED]");
 }
 
@@ -319,6 +321,9 @@ export async function applyChanges(input: {
   const root = await realpath(run.repositoryRoot);
   if (git(root, ["rev-parse", "--show-toplevel"]) !== root)
     throw new Error("Repository root must be the Git top level.");
+  const baseCommit = git(root, ["rev-parse", "HEAD"]);
+  if (priorApply && priorApply.metadata?.baseCommit !== baseCommit)
+    throw new Error("Repository base changed since apply; inspect the preserved worktree.");
   const worktree =
     typeof priorApply?.metadata?.worktree === "string"
       ? priorApply.metadata.worktree
@@ -355,18 +360,20 @@ export async function applyChanges(input: {
         });
       }
     }
-    const diff = git(resolvedWorktree, ["diff", "--stat"]);
+    const diff = git(resolvedWorktree, ["diff", "--no-ext-diff", "--no-textconv", "--stat"]);
     await input.store.recordArtifact(run.id, {
       kind: "diff",
       summary: diff || `${proposal.changes.length} file changes applied.`,
       metadata: {
         type: "change-applied",
         proposalArtifactId: proposalArtifact.id,
-        worktree,
+        worktree: resolvedWorktree,
+        baseCommit,
+        fingerprint: await developmentFingerprint(resolvedWorktree),
         changes: proposal.changes.map((item) => ({ action: item.action, path: item.path }))
       }
     });
-    return worktree;
+    return resolvedWorktree;
   } catch (error) {
     await input.store.recordArtifact(run.id, {
       kind: "report",
@@ -377,7 +384,150 @@ export async function applyChanges(input: {
   }
 }
 
-const validationCommands: Partial<Record<ValidationCheck, CommandDefinition>> = {
+// Hash streams without interpreting or retaining target source in this process.
+export async function developmentFingerprint(root: string): Promise<string> {
+  const hash = createHash("sha256").update(git(root, ["rev-parse", "HEAD"]));
+  const tracked = git(root, [
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--name-only",
+    "-z",
+    "HEAD"
+  ]);
+  const untracked = git(root, ["ls-files", "--others", "--exclude-standard", "-z"]);
+  const files = [...new Set(`${tracked}\0${untracked}`.split("\0").filter(Boolean))].sort();
+  if (files.length > 2_000) throw new Error("Worktree fingerprint exceeds the file limit.");
+  let bytes = 0;
+  for (const file of files) {
+    const target = await safeTarget(root, file);
+    const stat = await lstat(target).catch(() => undefined);
+    if (stat && !stat.isFile())
+      throw new Error("Worktree fingerprint encountered a non-file change.");
+    bytes += stat?.size ?? 0;
+    if (bytes > 50_000_000) throw new Error("Worktree fingerprint exceeds the byte limit.");
+    hash.update(JSON.stringify([file, stat?.mode ?? null, stat ? await hashFile(target) : null]));
+  }
+  // Include staged/index metadata as well as working-tree content.
+  hash.update(git(root, ["diff", "--no-ext-diff", "--no-textconv", "--raw", "HEAD"]));
+  hash.update(git(root, ["diff", "--no-ext-diff", "--no-textconv", "--cached", "--raw"]));
+  return hash.digest("hex");
+}
+
+export async function assertAppliedState(run: RunSnapshot): Promise<string> {
+  const applied = artifactOf(run, "change-applied");
+  const proposal = artifactOf(run, "change-proposal");
+  if (!applied || !proposal || applied.metadata?.proposalArtifactId !== proposal.id)
+    throw new Error("Applied proposal is stale or missing.");
+  const metadata = z
+    .object({ worktree: z.string(), baseCommit: z.string(), fingerprint: z.string() })
+    .parse(applied.metadata);
+  const worktree = await realpath(metadata.worktree);
+  const root = await realpath(run.repositoryRoot);
+  if (
+    git(root, ["rev-parse", "HEAD"]) !== metadata.baseCommit ||
+    git(worktree, ["rev-parse", "HEAD"]) !== metadata.baseCommit ||
+    git(worktree, ["rev-parse", "--show-toplevel"]) !== worktree ||
+    (await realpath(path.resolve(worktree, git(worktree, ["rev-parse", "--git-common-dir"])))) !==
+      (await realpath(path.resolve(root, git(root, ["rev-parse", "--git-common-dir"]))))
+  ) {
+    throw new Error("Repository or worktree base changed; inspect before resuming.");
+  }
+  if ((await developmentFingerprint(worktree)) !== metadata.fingerprint)
+    throw new Error("Worktree contents changed since apply; previous checks and review are stale.");
+  return worktree;
+}
+
+export function appliedChangeSet(
+  worktree: string
+): { path: string; action: "create" | "modify" | "delete" }[] {
+  const entries = git(worktree, [
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-renames",
+    "--name-status",
+    "-z",
+    "HEAD"
+  ]).split("\0");
+  const changes: { path: string; action: "create" | "modify" | "delete" }[] = [];
+  for (let index = 0; index + 1 < entries.length; index += 2) {
+    const status = entries[index];
+    changes.push({
+      path: entries[index + 1]!,
+      action: status === "D" ? "delete" : status === "A" ? "create" : "modify"
+    });
+  }
+  for (const file of git(worktree, ["ls-files", "--others", "--exclude-standard", "-z"])
+    .split("\0")
+    .filter(Boolean)) {
+    changes.push({ path: file, action: "create" });
+  }
+  return changes.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+export async function reviewAppliedChanges(input: {
+  store: WorkflowStore;
+  runId: string;
+  criteria: { id: string; description: string }[];
+  ollama?: OllamaConfig;
+}): Promise<IndependentReview> {
+  const run = await input.store.loadRun(input.runId);
+  const worktree = await assertAppliedState(run);
+  const applied = artifactOf(run, "change-applied")!;
+  const validation = artifactOf(run, "development-validation");
+  if (
+    validation?.metadata?.proposalArtifactId !== applied.metadata?.proposalArtifactId ||
+    validation?.metadata?.passed !== true ||
+    validation.metadata.fingerprint !== applied.metadata?.fingerprint
+  )
+    throw new Error("Independent review requires fresh passing validation.");
+  const proposal = changeProposalSchema.parse(
+    artifactOf(run, "change-proposal")?.metadata?.proposal
+  );
+  const task = planned(run).tasks.find((item) => item.id === proposal.taskId)!;
+  const changes = appliedChangeSet(worktree);
+  if (!changes.length || changes.some((change) => !scopeContains(change.path, task.writeSet)))
+    throw new Error("Independent review requires scoped final worktree changes.");
+  if (run.provider !== "codex" && (run.provider !== "ollama" || !input.ollama))
+    throw new Error("Independent review requires Codex or configured Ollama.");
+  const bundled = new URL("./review-broker.mjs", import.meta.url);
+  const broker = existsSync(fileURLToPath(bundled))
+    ? bundled
+    : new URL("../../provider/dist/review-broker.js", import.meta.url);
+  const review = independentReviewSchema.parse(
+    runJsonProcess(
+      process.execPath,
+      [fileURLToPath(broker)],
+      run.repositoryRoot,
+      JSON.stringify({
+        repositoryRoot: worktree,
+        baseCommit: applied.metadata?.baseCommit,
+        objective: run.objective.slice(0, 4_000),
+        scopes: [...task.readSet, ...task.writeSet],
+        changes,
+        criteria: input.criteria,
+        ...(run.provider === "codex" ? { codex: true } : { ollama: input.ollama })
+      }),
+      (input.ollama?.timeoutMs ?? 180_000) + 5_000
+    )
+  );
+  await assertAppliedState(await input.store.loadRun(run.id));
+  await input.store.recordArtifact(run.id, {
+    kind: "report",
+    summary: review.summary,
+    metadata: {
+      type: "independent-review",
+      proposalArtifactId: applied.metadata?.proposalArtifactId,
+      fingerprint: applied.metadata?.fingerprint,
+      changes,
+      review
+    }
+  });
+  return review;
+}
+
+export const validationCommands: Partial<Record<ValidationCheck, CommandDefinition>> = {
   format: {
     id: "format",
     executable: "pnpm",
@@ -411,6 +561,7 @@ export async function validateAppliedChanges(input: {
   if (latestValidation?.metadata?.proposalArtifactId === applied.metadata?.proposalArtifactId)
     throw new Error("Validation already recorded for this proposal.");
   const worktree = await realpath(applied.metadata.worktree);
+  const fingerprint = await developmentFingerprint(worktree);
   const checks = [...new Set(input.policy.validation.before_commit)];
   if (
     checks.length > 0 &&
@@ -439,8 +590,11 @@ export async function validateAppliedChanges(input: {
     results.push(result);
     if (result.status !== "completed" && input.policy.validation.stop_on_failure) break;
   }
+  const unchanged = (await developmentFingerprint(worktree)) === fingerprint;
   const passed =
-    results.length === checks.length + 1 && results.every((item) => item.status === "completed");
+    unchanged &&
+    results.length === checks.length + 1 &&
+    results.every((item) => item.status === "completed");
   await input.store.recordArtifact(run.id, {
     kind: "report",
     summary: passed ? "Development validation passed." : "Development validation failed.",
@@ -449,6 +603,8 @@ export async function validateAppliedChanges(input: {
       proposalArtifactId: applied.metadata?.proposalArtifactId,
       worktree,
       passed,
+      fingerprint,
+      worktreeUnchanged: unchanged,
       checks: results.map(({ commandId, status, exitCode, durationMs, stdout, stderr }) => ({
         commandId,
         status,
@@ -464,9 +620,18 @@ export async function validateAppliedChanges(input: {
 
 export function getDevelopmentArtifacts(run: RunSnapshot) {
   return {
+    deliveryRequest: artifactOf(run, "delivery-request"),
+    deliveryMessage: artifactOf(run, "delivery-message"),
+    deliveryReport: artifactOf(run, "delivery-report"),
     plan: artifactOf(run, "planning-intent"),
     proposal: artifactOf(run, "change-proposal"),
     applied: artifactOf(run, "change-applied"),
-    validation: artifactOf(run, "development-validation")
+    validation: artifactOf(run, "development-validation"),
+    review: artifactOf(run, "independent-review"),
+    completion: artifactOf(run, "task-completion"),
+    commit: artifactOf(run, "development-commit"),
+    push: artifactOf(run, "development-push"),
+    pushIntent: artifactOf(run, "development-push-intent"),
+    pushValidation: artifactOf(run, "push-validation")
   };
 }

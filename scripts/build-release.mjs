@@ -41,7 +41,17 @@ try {
     entryPoints: [path.join(root, "packages/provider/src/change-broker.ts")],
     outfile: path.join(staging, "bin/change-broker.mjs")
   });
+  await build({
+    ...common,
+    entryPoints: [path.join(root, "packages/provider/src/review-broker.ts")],
+    outfile: path.join(staging, "bin/review-broker.mjs")
+  });
   await chmod(path.join(staging, "bin/repopilot.mjs"), 0o755);
+  await build({
+    ...common,
+    entryPoints: [path.join(root, "apps/cli/src/install-entry.ts")],
+    outfile: path.join(staging, "bin/install-completion.mjs")
+  });
   await writeFile(
     path.join(staging, "package.json"),
     JSON.stringify(
@@ -51,6 +61,7 @@ try {
         description: manifest.description,
         type: "module",
         bin: { repopilot: "./bin/repopilot.mjs" },
+        scripts: { postinstall: "node ./bin/install-completion.mjs" },
         engines: { node: ">=22 <26" },
         files: ["bin", "README.md"],
         private: false
@@ -61,7 +72,7 @@ try {
   );
   await writeFile(
     path.join(staging, "README.md"),
-    `# RepoPilot ${version}\n\nSelf-contained local CLI release. Requires Node.js 22–25 and Git.\nSee https://github.com/steveleecode/RepoPilot for setup and security guidance.\n`
+    `# RepoPilot ${version}\n\nSelf-contained local CLI release. Requires Node.js 22–25 and Git.\nGlobal zsh installs enable completion by default. Set REPOPILOT_SKIP_COMPLETION_SETUP=1 to opt out. Run repopilot settings for personal completion configuration.\nSee https://github.com/steveleecode/RepoPilot for setup and security guidance.\n`
   );
   run(
     "npm",
@@ -84,6 +95,16 @@ try {
     root
   );
   const executable = path.join(installed, "node_modules/repopilot/bin/repopilot.mjs");
+  const installedManifest = JSON.parse(
+    await readFile(path.join(installed, "node_modules/repopilot/package.json"), "utf8")
+  );
+  if (installedManifest.scripts?.postinstall !== "node ./bin/install-completion.mjs")
+    throw new Error("Packaged CLI is missing its completion install hook.");
+  run(
+    process.execPath,
+    [path.join(installed, "node_modules/repopilot/bin/install-completion.mjs")],
+    root
+  );
   const versionOutput = run(process.execPath, [executable, "version"], root).trim();
   if (versionOutput !== version)
     throw new Error(`Packaged CLI reported ${versionOutput}, expected ${version}.`);

@@ -1,10 +1,15 @@
 import { createInterface } from "node:readline/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import type { Readable, Writable } from "node:stream";
 import { analyzeRepository, type RepositoryAnalysis } from "@repopilot/analyzer";
 
+import { createTerminalMarkdown } from "./terminal-markdown.js";
+
 export type ChatTurn = { role: "user" | "model"; text: string };
 
-export const defaultGeminiModel = "gemini-2.5-flash";
+export const defaultGroqModel = "openai/gpt-oss-120b";
+export type ChatProvider = "groq" | "gemini";
+export const defaultGeminiModel = "gemini-flash-latest";
 const maxResponseBytes = 2_000_000;
 const maxReplyCharacters = 60_000;
 const maxHistoryTurns = 12;
@@ -46,6 +51,7 @@ export function buildChatContext(analysis: RepositoryAnalysis): string {
 }
 
 export interface GeminiStreamOptions {
+  provider?: ChatProvider;
   apiKey: string;
   model: string;
   history: ChatTurn[];
@@ -56,40 +62,92 @@ export interface GeminiStreamOptions {
 }
 
 export async function streamGeminiReply(options: GeminiStreamOptions): Promise<string> {
-  if (!options.apiKey) throw new Error("GEMINI_API_KEY is not configured.");
-  if (!/^[a-zA-Z0-9._-]+$/.test(options.model)) throw new Error("Invalid Gemini model name.");
+  const groq = options.provider === "groq";
+  const label = groq ? "Groq" : "Gemini";
+  if (!options.apiKey) throw new Error(`${label.toUpperCase()}_API_KEY is not configured.`);
+  if (
+    !(
+      groq ? /^[a-zA-Z0-9][a-zA-Z0-9._-]*(?:\/[a-zA-Z0-9][a-zA-Z0-9._-]*)?$/ : /^[a-zA-Z0-9._-]+$/
+    ).test(options.model)
+  )
+    throw new Error(`Invalid ${label} model name.`);
   const history = options.history.slice(-maxHistoryTurns);
   if (history[0]?.role === "model") history.shift();
   if (history.length === 0 || history.at(-1)?.role !== "user")
     throw new Error("A user message is required.");
-  const response = await (options.fetcher ?? fetch)(
-    `https://generativelanguage.googleapis.com/v1beta/models/${options.model}:streamGenerateContent?alt=sse`,
+  const signal = options.signal
+    ? AbortSignal.any([options.signal, AbortSignal.timeout(120_000)])
+    : AbortSignal.timeout(120_000);
+  const fetchWithRetry: typeof fetch = async (url, init) => {
+    for (let attempt = 0; ; attempt++) {
+      signal.throwIfAborted();
+      const response = await (options.fetcher ?? fetch)(url, init);
+      if (![502, 503, 504].includes(response.status) || attempt === 2) return response;
+      await response.body?.cancel();
+      await delay(1_000 * 2 ** attempt, undefined, { signal });
+    }
+  };
+  const response = await fetchWithRetry(
+    groq
+      ? "https://api.groq.com/openai/v1/chat/completions"
+      : `https://generativelanguage.googleapis.com/v1beta/models/${options.model}:streamGenerateContent?alt=sse`,
     {
       method: "POST",
+      redirect: "error",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": options.apiKey
+        ...(groq
+          ? { Authorization: `Bearer ${options.apiKey}` }
+          : { "x-goog-api-key": options.apiKey })
       },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text: `${systemInstruction}${options.context ? `\nRepository metadata: ${options.context}` : ""}`
+      body: JSON.stringify(
+        groq
+          ? {
+              model: options.model,
+              stream: true,
+              max_completion_tokens: 4096,
+              messages: [
+                {
+                  role: "system",
+                  content: `${systemInstruction}${options.context ? `\nRepository metadata: ${options.context}` : ""}`
+                },
+                ...history.map((turn) => ({
+                  role: turn.role === "model" ? "assistant" : "user",
+                  content: turn.text
+                }))
+              ]
             }
-          ]
-        },
-        contents: history.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] }))
-      }),
-      signal: options.signal
-        ? AbortSignal.any([options.signal, AbortSignal.timeout(120_000)])
-        : AbortSignal.timeout(120_000)
+          : {
+              systemInstruction: {
+                parts: [
+                  {
+                    text: `${systemInstruction}${options.context ? `\nRepository metadata: ${options.context}` : ""}`
+                  }
+                ]
+              },
+              contents: history.map((turn) => ({ role: turn.role, parts: [{ text: turn.text }] }))
+            }
+      ),
+      signal
     }
   );
+  if ([502, 503, 504].includes(response.status))
+    throw new Error(
+      `${label} is temporarily unavailable (HTTP ${response.status}) after 3 attempts. Try again shortly, or choose another available model with repopilot chat --provider ${groq ? "groq" : "gemini"} --model <id>.`
+    );
+  if (groq && response.status === 404)
+    throw new Error(
+      "Groq model unavailable (HTTP 404). Select an available model with repopilot chat --provider groq --model <id>."
+    );
+  if (response.status === 404)
+    throw new Error(
+      `Gemini request failed (HTTP 404). Model "${options.model}" is unavailable or does not support this request. Try repopilot chat --provider gemini --model ${defaultGeminiModel}, or select a model available to your key in Google AI Studio.`
+    );
   if (!response.ok)
     throw new Error(
-      `Gemini request failed (HTTP ${response.status}). Check the API key, model, and quota.`
+      `${label} request failed (HTTP ${response.status}). ${response.status === 429 ? "Rate limit reached; wait before retrying or check your plan limits." : "Check the API key, model, and provider status."}`
     );
-  if (!response.body) throw new Error("Gemini returned no response stream.");
+  if (!response.body) throw new Error(`${label} returned no response stream.`);
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -108,22 +166,32 @@ export async function streamGeminiReply(options: GeminiStreamOptions): Promise<s
     try {
       message = JSON.parse(data);
     } catch {
-      throw new Error("Gemini returned malformed streaming data.");
+      throw new Error(`${label} returned malformed streaming data.`);
     }
-    const parts = (message as { candidates?: { content?: { parts?: { text?: unknown }[] } }[] })
-      .candidates?.[0]?.content?.parts;
+    if (!message || typeof message !== "object")
+      throw new Error(`${label} returned malformed streaming data.`);
+    const parts = groq
+      ? [
+          {
+            text: (message as { choices?: { delta?: { content?: unknown } }[] }).choices?.[0]?.delta
+              ?.content
+          }
+        ]
+      : (message as { candidates?: { content?: { parts?: { text?: unknown }[] } }[] })
+          .candidates?.[0]?.content?.parts;
     if (!Array.isArray(parts)) return;
     for (const part of parts) {
       if (typeof part?.text !== "string") continue;
       reply += part.text;
       if (reply.length > maxReplyCharacters)
-        throw new Error("Gemini reply exceeded the size limit.");
+        throw new Error(`${label} reply exceeded the size limit.`);
       await options.onText(part.text);
     }
   };
   const consumeLines = async (chunk: string): Promise<void> => {
     pending += chunk;
-    if (pending.length > maxResponseBytes) throw new Error("Gemini event exceeded the size limit.");
+    if (pending.length > maxResponseBytes)
+      throw new Error(`${label} event exceeded the size limit.`);
     let newline = pending.indexOf("\n");
     while (newline >= 0) {
       const line = pending.slice(0, newline).replace(/\r$/, "");
@@ -138,7 +206,7 @@ export async function streamGeminiReply(options: GeminiStreamOptions): Promise<s
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.byteLength;
-      if (bytes > maxResponseBytes) throw new Error("Gemini response exceeded the size limit.");
+      if (bytes > maxResponseBytes) throw new Error(`${label} response exceeded the size limit.`);
       await consumeLines(decoder.decode(value, { stream: true }));
     }
     await consumeLines(decoder.decode());
@@ -149,11 +217,12 @@ export async function streamGeminiReply(options: GeminiStreamOptions): Promise<s
     reader.releaseLock();
   }
   if (!reply.trim())
-    throw new Error("Gemini returned no text. The response may have been blocked.");
+    throw new Error(`${label} returned no text. The response may have been blocked.`);
   return reply;
 }
 
 export interface InteractiveChatOptions {
+  provider?: ChatProvider;
   repositoryRoot: string;
   apiKey: string;
   model: string;
@@ -165,17 +234,26 @@ export interface InteractiveChatOptions {
 }
 
 export async function runInteractiveGeminiChat(options: InteractiveChatOptions): Promise<void> {
-  if (!options.apiKey) throw new Error("GEMINI_API_KEY is missing. Run repopilot config gemini.");
+  const provider = options.provider ?? "gemini";
+  const label = provider === "groq" ? "Groq" : "Gemini";
+  if (!options.apiKey)
+    throw new Error(
+      `${provider.toUpperCase()}_API_KEY is missing. Run repopilot config ${provider}.`
+    );
   const context = options.includeContext
     ? buildChatContext(await analyzeRepository(options.repositoryRoot))
     : undefined;
   const history: ChatTurn[] = [];
   const terminal = options.animate;
   const rl = createInterface({ input: options.input, output: options.output, terminal });
-  options.output.write(`RepoPilot Chat · Gemini ${options.model}\n`);
+  options.output.write(`RepoPilot Chat · ${label} ${options.model}\n`);
   options.output.write(
     `${context ? "Sending bounded repository metadata, not source code." : "Repository context disabled."} Type /help for commands.\n\n`
   );
+  if (provider === "gemini")
+    options.output.write(
+      "Gemini may be slower than Groq, especially during high demand. Speed varies by model and service availability. Switch with repopilot chat --provider groq.\n\n"
+    );
   try {
     while (true) {
       let question: string;
@@ -199,27 +277,35 @@ export async function runInteractiveGeminiChat(options: InteractiveChatOptions):
         options.output.write("Message too long (maximum 6,000 characters).\n");
         continue;
       }
-      options.output.write("Gemini> ");
+      options.output.write(`${label}> `);
+      const renderer = createTerminalMarkdown(
+        (text) => {
+          options.output.write(text);
+        },
+        terminal && process.env.NO_COLOR === undefined && process.env.TERM !== "dumb"
+      );
       try {
         const reply = await streamGeminiReply({
+          provider,
           apiKey: options.apiKey,
           model: options.model,
           history: [...history, { role: "user", text: question }],
           ...(context ? { context } : {}),
           ...(options.fetcher ? { fetcher: options.fetcher } : {}),
-          onText: async (text) => {
-            if (!options.animate) return void options.output.write(text);
-            for (const character of text) {
-              options.output.write(character);
-              await new Promise((resolve) => setTimeout(resolve, 3));
-            }
-          }
+          onText: (text) => renderer.write(text)
         });
+        renderer.flush();
         history.push({ role: "user", text: question }, { role: "model", text: reply });
         if (history.length > maxHistoryTurns) history.splice(0, history.length - maxHistoryTurns);
         options.output.write("\n\n");
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Gemini request failed.";
+        renderer.flush();
+        const message =
+          error instanceof Error && error.name === "TimeoutError"
+            ? `${label} timed out. Try again shortly or choose another model.`
+            : error instanceof Error
+              ? error.message
+              : `${label} request failed.`;
         options.output.write(`\n${message}\n\n`);
       }
     }
@@ -227,3 +313,6 @@ export async function runInteractiveGeminiChat(options: InteractiveChatOptions):
     rl.close();
   }
 }
+
+export const streamChatReply = streamGeminiReply;
+export const runInteractiveChat = runInteractiveGeminiChat;

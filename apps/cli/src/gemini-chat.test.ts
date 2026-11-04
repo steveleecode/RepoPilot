@@ -25,6 +25,74 @@ function streamedResponse(chunks: string[]): Response {
 }
 
 describe("Gemini chat streaming", () => {
+  it("retries temporary service failures before streaming a successful reply", async () => {
+    let attempts = 0;
+    const fetcher: typeof fetch = () => {
+      attempts++;
+      return Promise.resolve(
+        attempts < 3
+          ? new Response("private details", { status: 503 })
+          : streamedResponse([
+              'data: {"candidates":[{"content":{"parts":[{"text":"Hello"}]}}]}\n\n'
+            ])
+      );
+    };
+    const printed: string[] = [];
+    await expect(
+      streamGeminiReply({
+        apiKey: "test-secret",
+        model: defaultGeminiModel,
+        history: [{ role: "user", text: "Hello" }],
+        onText: (text) => {
+          printed.push(text);
+        },
+        fetcher
+      })
+    ).resolves.toBe("Hello");
+    expect(attempts).toBe(3);
+    expect(printed).toEqual(["Hello"]);
+  });
+
+  it("stops after three temporary failures with actionable guidance", async () => {
+    let attempts = 0;
+    const fetcher: typeof fetch = () => {
+      attempts++;
+      return Promise.resolve(new Response("private details", { status: 503 }));
+    };
+    await expect(
+      streamGeminiReply({
+        apiKey: "test-secret",
+        model: defaultGeminiModel,
+        history: [{ role: "user", text: "Hello" }],
+        onText: () => undefined,
+        fetcher
+      })
+    ).rejects.toThrow("Gemini is temporarily unavailable (HTTP 503) after 3 attempts");
+    expect(attempts).toBe(3);
+  });
+
+  it("uses the rolling Flash alias instead of a retired model version", () => {
+    expect(defaultGeminiModel).toBe("gemini-flash-latest");
+  });
+
+  it("explains unavailable models without exposing provider details or the key", async () => {
+    const fetcher: typeof fetch = () =>
+      Promise.resolve(new Response("test-secret private details", { status: 404 }));
+    const result = streamGeminiReply({
+      apiKey: "test-secret",
+      model: "gemini-2.5-flash",
+      history: [{ role: "user", text: "Hello" }],
+      onText: () => undefined,
+      fetcher
+    });
+    await expect(result).rejects.toThrow('Model "gemini-2.5-flash" is unavailable');
+    await expect(result).rejects.toThrow(
+      "repopilot chat --provider gemini --model gemini-flash-latest"
+    );
+    await expect(result).rejects.not.toThrow("test-secret");
+    await expect(result).rejects.not.toThrow("private details");
+  });
+
   it("runs an interactive session and exits without writing project files", async () => {
     const root = path.join(tmpdir(), `repopilot-chat-${crypto.randomUUID()}`);
     await mkdir(root);

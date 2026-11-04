@@ -611,3 +611,26 @@ export {
   validateChangeProposal,
   type ChangeProposal
 } from "./development.js";
+
+export {
+  VerifiedTaskRunner,
+  initializeDevelopmentTask,
+  getTaskCompletionReport,
+  type TaskCompletionReport,
+  type TaskRunnerOptions,
+  type TaskRunnerOperations
+} from "./task-runner.js";
+
+export { commitDevelopmentTask, type DevelopmentCommit } from "./git-lifecycle.js";
+export { pushDevelopmentTask, type DevelopmentPush } from "./push-lifecycle.js";
+export {
+  runDevelopmentWithDelivery,
+  getDeliveryRequest,
+  getDeliveryReport,
+  isDevelopmentUnfinished,
+  validateCommitMessage,
+  getReviewedCommitMessageContext,
+  type DeliveryRequest,
+  type DeliveryReport,
+  type CommitMessageContext
+} from "./auto-delivery.js";

@@ -25,6 +25,16 @@ The dashboard intentionally labels incomplete behavior as planned or unavailable
 
 ## CLI
 
+Zsh completion supports described command menus, arrow-key selection, command-specific flags and
+provider values through `completion zsh`. Optional `--auto-menu` opens menus at recognized word
+boundaries. Completion is static and does not execute target tooling or providers. Shell activation
+and the Tab-only fallback are documented in the CLI reference.
+
+Standalone global zsh installs enable completion by default, with an opt-out and safe idempotent
+managed-entry append. CI, local dependencies, privileged installs, and unsupported shells skip setup.
+`settings` offers an interactive personal completion question, separately from project `setup`;
+`completion install zsh` remains a fallback. Startup configuration is never sourced by the installer.
+
 The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm repopilot` script. It supports:
 
 - `--help`
@@ -50,6 +60,8 @@ The CLI in `apps/cli` exposes the `repopilot` command through the local `pnpm re
 - `run <objective> --provider fake` for a persisted read-only provider workflow
 - `run <objective> --provider ollama` for a local-model planning turn
 - `propose`, `inspect`, `apply`, `verify`, and `repair` for the first local development workflow
+- `run --develop` and `resume --develop` for supervised single-task execution, durable recovery,
+  approval gates, bounded validation repair, independent source review, and completion reports
 
 Repository-oriented commands accept `--repo <path>`. Data-producing commands support JSON output,
 unknown flags are rejected, and command failures use stable categorized exit codes.
@@ -98,7 +110,8 @@ interrupted validation can resume from its recorded provider result without repe
 The engine bounds provider event consumption and records failure reports according to execution policy.
 It also produces stable dependency-ordered task batches and uses policy scope-overlap rules to keep
 unsafe work out of the same batch. Separate development commands now apply generated changes only in
-isolated Git worktrees and run opt-in validation. They do not commit or push.
+isolated Git worktrees and run opt-in validation. Explicit reviewed commit and push commands extend
+that flow as described below; planning itself never commits or publishes.
 
 ## Execution Boundary
 
@@ -193,8 +206,22 @@ RepoPilot still does not implement:
 - OS-level container or remote execution sandboxing.
 - Interactive approval, cancel, and cleanup operations for development worktrees.
 - Arbitrary language/tool validation catalogs beyond the current Node/pnpm checks.
-- Automatic commit, push, or pull-request execution.
+- Pull-request creation. Explicitly selected automatic commit/push delivery is implemented under policy.
 - GitHub authentication.
 - Telemetry.
 - Hosted execution.
 - Pull-request merging.
+
+## Explicit Git publishing
+
+- `commit <run-id> --message <message>` creates explicitly requested, policy-gated local commits
+  after fresh validation and independent review. Pull-request integration remains unimplemented.
+- `commit --commit-only` (the default) keeps reviewed commits local; `commit --push` chains explicit
+  local commit and policy-gated publication, and `push <run-id>` publishes an already committed run.
+- Publishing enforces current remote, branch, approval, validation and no-force policy. Additional
+  checks require `--execute-checks`; failed or source-mutating checks block publication.
+- Isolated transport metadata prevents target hooks, custom transport commands, configured refspecs,
+  mirror settings and tag settings from expanding publication. SSH/HTTPS/local destinations are
+  supported with the authentication limits documented in the CLI reference.
+- Durable destination-bound push intent/results and exact remote-ref observations make successful
+  repeats idempotent and ambiguous interrupted outcomes inspectable without unsafe replay.
