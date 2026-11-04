@@ -18,6 +18,7 @@ not bypassing approval gates.
 
 ## For contributors
 
+- [npm publishing workflow](releases/NPM_WORKFLOW.md): dry runs, versioned releases, and trusted publisher setup.
 - [Agent guidance](../AGENTS.md): repository development constraints.
 - [System overview](architecture/SYSTEM_OVERVIEW.md): architecture and package boundaries.
 - [Package reference](architecture/PACKAGE_REFERENCE.md): package contracts.
