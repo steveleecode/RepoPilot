@@ -20,7 +20,7 @@
     "format:check": "prettier --check .",
     "typecheck": "turbo run typecheck",
     "test": "vitest run",
-    "test:release": "node --test scripts/release-licenses.test.mjs",
+    "test:release": "node --test scripts/release-licenses.test.mjs scripts/npm-release.test.mjs",
     "test:e2e": "playwright test",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm test:release && pnpm build",
     "release:build": "node scripts/build-release.mjs",

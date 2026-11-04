@@ -1,0 +1,111 @@
+name: Publish repilot to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New npm version (blank uses package.json; existing versions cannot be overwritten)"
+        type: string
+        required: false
+        default: ""
+      tag:
+        description: "npm distribution tag"
+        type: choice
+        options: [latest, next]
+        default: latest
+      publish:
+        description: "Publish to npm after validation (false builds a dry-run artifact only)"
+        type: boolean
+        default: false
+  push:
+    branches: [main, "codex/**"]
+    paths:
+      - .github/workflows/publish-npm.yml
+      - scripts/*release*.mjs
+      - docs/product/NPM_README.md
+      - docs/legal/**
+      - package.json
+      - apps/cli/package.json
+      - pnpm-lock.yaml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repilot-npm-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      archive: ${{ steps.release.outputs.archive }}
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.6.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Prepare release identity in the temporary checkout
+        id: release
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+          DIST_TAG: ${{ inputs.tag || 'latest' }}
+        run: node scripts/npm-release.mjs prepare
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - name: Build and smoke-test archive
+        run: pnpm release:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-release-${{ matrix.os }}-${{ github.sha }}
+          path: |
+            release-artifacts/${{ steps.release.outputs.archive }}
+            release-artifacts/repopilot-${{ steps.release.outputs.version }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: validate
+    if: github.repository == 'steveleecode/RepoPilot' && github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+      DIST_TAG: ${{ needs.validate.outputs.tag }}
+      ARCHIVE: ${{ needs.validate.outputs.archive }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned OIDC-capable npm CLI
+        run: npm install --global npm@11.21.1 --ignore-scripts --no-audit --no-fund
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-release-ubuntu-latest-${{ github.sha }}
+          path: release-artifacts
+      - name: Verify exact archive and reject existing versions
+        run: node scripts/npm-release.mjs check
+      - name: Publish validated archive using npm trusted publishing
+        run: npm publish "./release-artifacts/$ARCHIVE" --tag "$DIST_TAG" --access public --ignore-scripts --registry=https://registry.npmjs.org/ --provenance
+      - name: Wait for registry availability and verify published integrity
+        run: node scripts/npm-release.mjs verify

@@ -47,6 +47,10 @@ pnpm build
 pnpm repopilot doctor
 ```
 
+For maintainers, the [npm release workflow](docs/releases/NPM_WORKFLOW.md) builds a selected Git ref,
+validates it on Linux/macOS, and publishes through npm trusted publishing after an explicit manual
+release request.
+
 Run commands from this checkout with `pnpm repopilot`. To create a standalone CLI archive:
 
 ```bash
