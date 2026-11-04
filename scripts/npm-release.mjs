@@ -27,6 +27,23 @@ export function validateRelease(version, tag) {
   return { version, tag, archive: `repopilot-${version}.tgz` };
 }
 
+export function renderNpmReadme(readme, { revision, version }) {
+  validateRelease(version, "next");
+  if (!/^[a-f0-9]{40,64}$/.test(revision))
+    throw new Error("README source revision must be a commit hash.");
+  const repository = "steveleecode/RepoPilot";
+  return readme
+    .replace(/(!?)\[([^\]]*)\]\(([^\s)]+)\)/g, (match, image, label, target) => {
+      if (/^(?:[a-z][a-z0-9+.-]*:|#|\/)/i.test(target)) return match;
+      const relative = target.replace(/^\.\//, "");
+      const base = image
+        ? `https://raw.githubusercontent.com/${repository}/${revision}/`
+        : `https://github.com/${repository}/blob/${revision}/`;
+      return `${image}[${label}](${base}${relative})`;
+    })
+    .replace(/^\*\*v[^ ]+ · Developer preview\.\*\*/m, `**v${version} · Developer preview.**`);
+}
+
 export async function prepareRelease(root, requestedVersion, tag) {
   const paths = [path.join(root, "package.json"), path.join(root, "apps/cli/package.json")];
   const manifests = await Promise.all(

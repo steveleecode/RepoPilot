@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import {
   prepareRelease,
+  renderNpmReadme,
   requireUnpublished,
   validateRelease,
   verifyPublication
@@ -137,5 +138,43 @@ test("verification rejects a mismatched archive and times out instead of claimin
       fetchImpl: async () => response(403)
     }),
     /HTTP 403/
+  );
+});
+
+test("npm README retains current install instructions and makes repository links and images portable", () => {
+  const revision = "a".repeat(40);
+  const source =
+    "**v0.3.0 · Developer preview.**\n\n" +
+    "npm install -g repilot\n" +
+    "[Start](#start) [Web](https://npmjs.com/package/repilot) " +
+    "[Docs](docs/README.md#users) ![Demo](docs/assets/demo.gif) " +
+    "[Local](./LICENSE.txt) [Mail](mailto:owner@example.test)\n";
+  const rendered = renderNpmReadme(source, { revision, version: "0.3.1" });
+  assert.match(rendered, /v0\.3\.1 · Developer preview/);
+  assert.match(rendered, /npm install -g repilot/);
+  assert.ok(
+    rendered.includes(
+      `[Docs](https://github.com/steveleecode/RepoPilot/blob/${revision}/docs/README.md#users)`
+    )
+  );
+  assert.ok(
+    rendered.includes(
+      `![Demo](https://raw.githubusercontent.com/steveleecode/RepoPilot/${revision}/docs/assets/demo.gif)`
+    )
+  );
+  assert.ok(
+    rendered.includes(
+      `[Local](https://github.com/steveleecode/RepoPilot/blob/${revision}/LICENSE.txt)`
+    )
+  );
+  for (const preserved of [
+    "[Start](#start)",
+    "[Web](https://npmjs.com/package/repilot)",
+    "[Mail](mailto:owner@example.test)"
+  ])
+    assert.ok(rendered.includes(preserved));
+  assert.throws(
+    () => renderNpmReadme(source, { revision: "../main", version: "0.3.1" }),
+    /commit hash/
   );
 });

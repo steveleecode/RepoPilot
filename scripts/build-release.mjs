@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { collectReleaseLicenses } from "./release-licenses.mjs";
+import { renderNpmReadme } from "./npm-release.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const releaseRoot = path.join(root, "release-artifacts");
@@ -127,7 +128,10 @@ if (process.argv.length === 3 && process.argv[2] === "--license") {
   );
   await writeFile(
     path.join(staging, "README.md"),
-    await readFile(path.join(root, "docs/product/NPM_README.md"), "utf8")
+    renderNpmReadme(await readFile(path.join(root, "README.md"), "utf8"), {
+      revision: run("git", ["rev-parse", "HEAD"], root).trim(),
+      version
+    })
   );
   const packed = JSON.parse(
     run(

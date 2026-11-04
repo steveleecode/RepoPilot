@@ -6,13 +6,13 @@ Set up Codex specialists, understand a repository from evidence, and move from a
 changes in an isolated worktree. RepoPilot brings policy, checks, and recoverable run history to your
 terminal so each project can follow the same process.
 
-**[Try now with ```npm```](https://npmx.dev/package/repilot)**
+**[Try now with `npm`](https://npmx.dev/package/repilot)**
 
 [Getting started](#getting-started) · [Features](#features) · [Documentation](#documentation) · [Contributing](#development-and-contributing)
 
 ![Real zsh command completion followed by an evidence-backed repository scan](docs/assets/repopilot-demo.gif)
 
-**v0.3.0 · Developer preview.** The CLI works locally; model-backed development needs Codex or Ollama.
+**v0.3.1 · Developer preview.** The CLI works locally; model-backed development needs Codex or Ollama.
 The dashboard is a preview shell. Review generated changes and use target-project checks only in
 repositories you trust.
 
@@ -57,8 +57,8 @@ Run commands from this checkout with `pnpm repopilot`. To create a standalone CL
 
 ```bash
 pnpm release:build
-(cd release-artifacts && shasum -a 256 -c repopilot-0.3.0.sha256)
-npm install -g ./release-artifacts/repopilot-0.3.0.tgz
+(cd release-artifacts && shasum -a 256 -c repopilot-0.3.1.sha256)
+npm install -g ./release-artifacts/repopilot-0.3.1.tgz
 repopilot --license
 # Only if you agree to EULA v1.0:
 export REPOPILOT_ACCEPT_EULA=1
@@ -167,7 +167,7 @@ does not force-push, create pull requests, merge, or deploy.
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | [CLI reference](docs/product/CLI_REFERENCE.md)                          | Setup, everyday commands, provider configuration, completion, and recovery |
 | [Execution policy](docs/product/EXECUTION_POLICY.md)                    | Permissions, approval gates, presets, and validation requirements          |
-| [Release notes](docs/releases/v0.3.0.md)                                | Preview limitations, archive installation, upgrade, and uninstall          |
+| [Release notes](docs/releases/v0.3.1.md)                                | Preview limitations, archive installation, upgrade, and uninstall          |
 | [Documentation index](docs/README.md)                                   | User guides, contributor references, and design documents                  |
 | [Capability audit](docs/product/README_AUDIT.md)                        | Source evidence behind this README and verification results                |
 | [Feature roadmap](docs/product/FEATURE_ROADMAP.md)                      | Completed increments and remaining priorities                              |
