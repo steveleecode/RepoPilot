@@ -6,22 +6,37 @@ Set up Codex specialists, understand a repository from evidence, and move from a
 changes in an isolated worktree. RepoPilot brings policy, checks, and recoverable run history to your
 terminal so each project can follow the same process.
 
-**[Try now with ```npm```](https://npmx.dev/package/repilot)**
+**[Try now with `npm`](https://npmx.dev/package/repilot)**
 
 [Getting started](#getting-started) · [Features](#features) · [Documentation](#documentation) · [Contributing](#development-and-contributing)
 
 ![Real zsh command completion followed by an evidence-backed repository scan](docs/assets/repopilot-demo.gif)
 
-**v0.3.0 · Developer preview.** The CLI works locally; model-backed development needs Codex or Ollama.
+**v0.3.1 · Developer preview.** The CLI works locally; model-backed development needs Codex or Ollama.
 The dashboard is a preview shell. Review generated changes and use target-project checks only in
 repositories you trust.
 
 ## Getting started
 
+### Install from npm
+
+Requires **Node.js 22–25 and Git** on macOS or Linux. The npm package is named `repilot`;
+`repilot` and `repopilot` are command aliases.
+
+```bash
+npm install -g repilot
+repopilot --license
+# Only if you agree to EULA v1.0:
+export REPOPILOT_ACCEPT_EULA=1
+repopilot version
+repopilot doctor
+```
+
+Read the [npm package guide](docs/product/NPM_README.md) for usage, upgrades, and uninstall instructions.
+
 ### Install from source
 
-Requires **Node.js 22, pnpm 11, and Git**. The source checkout is the installation path documented here;
-these commands do not assume a published npm package or release asset.
+Requires **Node.js 22, pnpm 11, and Git**.
 
 ```bash
 git clone https://github.com/steveleecode/RepoPilot.git
@@ -34,12 +49,16 @@ pnpm build
 pnpm repopilot doctor
 ```
 
+For maintainers, the [npm release workflow](docs/releases/NPM_WORKFLOW.md) builds a selected Git ref,
+validates it on Linux/macOS, and publishes through npm trusted publishing after an explicit manual
+release request.
+
 Run commands from this checkout with `pnpm repopilot`. To create a standalone CLI archive:
 
 ```bash
 pnpm release:build
-(cd release-artifacts && shasum -a 256 -c repopilot-0.3.0.sha256)
-npm install -g ./release-artifacts/repopilot-0.3.0.tgz
+(cd release-artifacts && shasum -a 256 -c repopilot-0.3.1.sha256)
+npm install -g ./release-artifacts/repopilot-0.3.1.tgz
 repopilot --license
 # Only if you agree to EULA v1.0:
 export REPOPILOT_ACCEPT_EULA=1
@@ -47,9 +66,11 @@ repopilot version
 ```
 
 The release builder smoke-tests isolated global installation and removal locally. Existing release
-CI runs on Node 22 Linux; the macOS/Linux matrix expansion awaits workflow publishing permission.
+CI runs on Node 22 Linux; the [npm release action](.github/workflows/publish-npm.yml) adds Linux/macOS
+validation and explicitly requested, tokenless npm publishing.
 Hosted CI results must pass before release; Windows is currently unvalidated
-and unsupported for standalone release installation. No public npm publication is assumed.
+and unsupported for standalone release installation. The archive contains the `repilot` npm package;
+its local filename retains the RepoPilot name for compatibility with existing CI artifact paths.
 
 The archive bundles the CLI, context brokers, EULA, and [third-party notices](docs/legal/THIRD_PARTY_NOTICES.txt).
 Packaged commands require explicit EULA acceptance, except `repopilot --license`. Installation without
@@ -146,7 +167,7 @@ does not force-push, create pull requests, merge, or deploy.
 | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | [CLI reference](docs/product/CLI_REFERENCE.md)                          | Setup, everyday commands, provider configuration, completion, and recovery |
 | [Execution policy](docs/product/EXECUTION_POLICY.md)                    | Permissions, approval gates, presets, and validation requirements          |
-| [Release notes](docs/releases/v0.3.0.md)                                | Preview limitations, archive installation, upgrade, and uninstall          |
+| [Release notes](docs/releases/v0.3.1.md)                                | Preview limitations, archive installation, upgrade, and uninstall          |
 | [Documentation index](docs/README.md)                                   | User guides, contributor references, and design documents                  |
 | [Capability audit](docs/product/README_AUDIT.md)                        | Source evidence behind this README and verification results                |
 | [Feature roadmap](docs/product/FEATURE_ROADMAP.md)                      | Completed increments and remaining priorities                              |

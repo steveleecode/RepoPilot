@@ -36,7 +36,8 @@ function git(root: string, args: string[]) {
   return result.stdout.trim();
 }
 
-describe("reviewed push", () => {
+// These integration cases spawn real Git processes; hosted macOS runners exceed the 5s unit-test default.
+describe("reviewed push", { timeout: 15_000 }, () => {
   it("keeps default commits local and publishes only the immutable reviewed branch when explicitly requested", async () => {
     const fixture = await ready();
     expect(git(fixture.remote, ["for-each-ref", "--format=%(refname)"])).toBe("");
