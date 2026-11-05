@@ -220,21 +220,21 @@ export async function promptCodexSetup(
     );
     const added = await rl.question("Add optional agents [none]: ");
     const optionalIds = parseSelection(added, optional, false);
-    output.write(
-      "Optional project description is sent to Gemini only if you choose AI tailoring.\n"
-    );
+    if (geminiAvailable)
+      output.write(
+        "Optional project description is sent to Gemini only if you choose AI tailoring.\n"
+      );
     const description = (await rl.question("Project/use-case description [skip]: ")).trim();
     if (description.length > 2_000)
       throw new Error("Project description must be 2,000 characters or less.");
-    if (!geminiAvailable)
-      output.write("Gemini tailoring unavailable: run repopilot config gemini first.\n");
+
     const answer = geminiAvailable
       ? (await rl.question("Ask Gemini to tailor selected agent focus? [y/N]: ")).trim()
       : "n";
     const agents = [...defaultIds, ...optionalIds];
     const useGemini = /^y(?:es)?$/i.test(answer);
     output.write(
-      `Selected: ${agents.join(", ") || "no specialist agents"}; Gemini tailoring: ${useGemini ? "yes" : "no"}.\n`
+      `Selected: ${agents.join(", ") || "no specialist agents"}; AI tailoring: ${useGemini ? "yes" : "no"}.\n`
     );
     const confirm = (await rl.question("Continue with this setup? [Y/n]: ")).trim();
     if (/^n(?:o)?$/i.test(confirm))

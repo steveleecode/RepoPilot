@@ -92,13 +92,14 @@ describe("RepoPilot CLI", () => {
     expect(JSON.parse(validate.output)).toMatchObject({ ok: true, command: "policy validate" });
   });
 
-  it("sets up project files without requiring a Gemini key in a non-interactive shell", async () => {
+  it("sets up project files without requiring a Groq key in a non-interactive shell", async () => {
     const cwd = await fixture();
     const setup = await runCli(["node", "repopilot", "config", "setup", "--skip-gemini"], cwd);
     const status = await runCli(["node", "repopilot", "config", "status", "--json"], cwd);
 
     expect(setup.exitCode).toBe(cliExitCode.success);
-    expect(setup.output).toContain("run repopilot config gemini");
+    expect(setup.output).toContain("run repopilot config groq");
+    expect(setup.output).not.toContain("Gemini");
     expect(JSON.parse(status.output)).toMatchObject({
       policyConfigured: true,
       codexConfigured: true,

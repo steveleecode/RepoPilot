@@ -72,8 +72,7 @@ import {
   loadGeminiKey,
   prepareGeminiEnv,
   promptGeminiKey,
-  readKeyFromStdin,
-  saveGeminiKey
+  readKeyFromStdin
 } from "./gemini-config.js";
 
 export const cliExitCode = {
@@ -109,7 +108,7 @@ const supportedNodeRange = ">=22 <26";
 const overviewText = `RepoPilot ${cliVersion}
 
 Start with a repository:
-  repopilot setup --repo <path>            Configure policy, agents, and optional Gemini chat
+  repopilot setup --repo <path>            Configure policy, agents, and optional Groq chat
   repopilot doctor --repo <path>           Check local requirements
   repopilot scan --repo <path>             See evidence-backed repository facts
 
@@ -122,7 +121,7 @@ Work on a task:
   repopilot verify <run-id> --execute-checks  Run trusted checks in that worktree
 
 Other paths:
-  repopilot chat                          Gemini advice (read-only)
+  repopilot chat                          Groq advice (read-only)
   repopilot providers doctor              Check Codex and Ollama integrations
   repopilot help <setup|workflow|providers|policy>  Show a focused guide
   repopilot --help                        Show every command and option
@@ -153,7 +152,7 @@ Planning is read-only. Inspect before apply. Apply writes only to an isolated wo
   repopilot providers codex status
   repopilot providers configure ollama --model <installed-model> --repo <path>
 
-Codex uses its own login. Ollama requires a locally running server and installed model. Gemini chat uses a local .repopilot/.env key.`,
+Codex uses its own login. Ollama requires a locally running server and installed model. Groq (default) and Gemini chat use local .repopilot/.env keys.`,
   policy: `Policy
   repopilot policy show --repo <path>
   repopilot policy validate --repo <path>
@@ -443,6 +442,7 @@ async function handleConfigCommand(
       ...commonOptions(),
       stdin: { type: "boolean" },
       "skip-gemini": { type: "boolean" },
+      "skip-groq": { type: "boolean" },
       agents: { type: "string" },
       description: { type: "string" },
       ai: { type: "boolean" },
@@ -456,12 +456,13 @@ async function handleConfigCommand(
     if (
       values.stdin ||
       values["skip-gemini"] ||
+      values["skip-groq"] ||
       values.agents ||
       values.description ||
       values.ai ||
       values.yes
     )
-      throw new CliUsageError("--stdin and --skip-gemini are not valid with config status.");
+      throw new CliUsageError("--stdin and key setup skip flags are not valid with config status.");
     const report = {
       policyConfigured: existsSync(path.join(repositoryRoot, repoPilotConfigPath)),
       codexConfigured: existsSync(path.join(repositoryRoot, ".codex/config.toml")),
@@ -480,8 +481,15 @@ async function handleConfigCommand(
   if (values.json) throw new CliUsageError("Interactive configuration does not support --json.");
   if (subcommand === "gemini" || subcommand === "groq") {
     const label = subcommand === "groq" ? "Groq" : "Gemini";
-    if (values["skip-gemini"] || values.agents || values.description || values.ai || values.yes)
-      throw new CliUsageError("--skip-gemini is only valid with config setup.");
+    if (
+      values["skip-gemini"] ||
+      values["skip-groq"] ||
+      values.agents ||
+      values.description ||
+      values.ai ||
+      values.yes
+    )
+      throw new CliUsageError("Key setup skip flags are only valid with config setup.");
     const key = values.stdin
       ? await readKeyFromStdin(process.stdin, label)
       : await promptGeminiKey(process.stdin, process.stdout, label);
@@ -497,17 +505,20 @@ async function handleConfigCommand(
     await prepareGeminiEnv(repositoryRoot);
     const policyCreated = !existsSync(path.join(repositoryRoot, repoPilotConfigPath));
     if (policyCreated) await writeRepositoryConfig(repositoryRoot, defaultConfig("balanced"));
-    let geminiConfigured = Boolean(await loadGeminiKey(repositoryRoot));
+    let groqConfigured = Boolean(
+      process.env.GROQ_API_KEY || (await loadChatKey(repositoryRoot, "groq"))
+    );
     if (
-      !geminiConfigured &&
+      !groqConfigured &&
       !values["skip-gemini"] &&
+      !values["skip-groq"] &&
       process.stdin.isTTY &&
       process.stdout.isTTY
     ) {
-      const key = await promptGeminiKey(process.stdin, process.stdout);
+      const key = await promptGeminiKey(process.stdin, process.stdout, "Groq");
       if (key) {
-        await saveGeminiKey(repositoryRoot, key);
-        geminiConfigured = true;
+        await saveChatKey(repositoryRoot, key, "groq");
+        groqConfigured = true;
       }
     }
     const codex = await runCodexSetup(
@@ -523,7 +534,7 @@ async function handleConfigCommand(
     );
     const github = await generateGithubReinforcement(repositoryRoot);
     return textResult(
-      `RepoPilot setup complete.\nPolicy: ${policyCreated ? "created" : "existing"}\nCodex files created: ${codex.created.join(", ") || "none"}\nCodex files skipped: ${codex.skipped.join(", ") || "none"}\nExisting unselected agents left untouched: ${codex.existingUnselected.join(", ") || "none"}\nGitHub: ${github.detected ? "detected" : "not detected"}\nCI files created: ${github.created.join(", ") || "none"}\nCI files skipped: ${github.skipped.join(", ") || "none"}\n${github.guidance.join("\n")}${github.guidance.length ? "\n" : ""}Chat default: Groq; run repopilot config groq to configure chat.\nGemini key: ${geminiConfigured ? "configured" : "not configured; run repopilot config gemini"}`
+      `RepoPilot setup complete.\nPolicy: ${policyCreated ? "created" : "existing"}\nCodex files created: ${codex.created.join(", ") || "none"}\nCodex files skipped: ${codex.skipped.join(", ") || "none"}\nExisting unselected agents left untouched: ${codex.existingUnselected.join(", ") || "none"}\nGitHub: ${github.detected ? "detected" : "not detected"}\nCI files created: ${github.created.join(", ") || "none"}\nCI files skipped: ${github.skipped.join(", ") || "none"}\n${github.guidance.join("\n")}${github.guidance.length ? "\n" : ""}Chat default: Groq\nGroq key: ${groqConfigured ? "configured; run repopilot chat" : "not configured; run repopilot config groq"}`
     );
   }
   throw new CliUsageError("Usage: repopilot config <setup|groq|gemini|status> [--repo path]");

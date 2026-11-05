@@ -94,9 +94,17 @@ const delivery = [
   "--message-provider[Model drafting the commit message]:message-provider:->message_provider"
 ];
 const flagCatalog: Record<string, string[]> = {
-  setup: [...setup, "--skip-gemini[Skip optional Gemini key setup]"],
+  setup: [
+    ...setup,
+    "--skip-groq[Skip optional Groq key setup]",
+    "--skip-gemini[Legacy alias for --skip-groq]"
+  ],
   "codex setup": setup,
-  "config setup": [...setup, "--skip-gemini[Skip optional Gemini key setup]"],
+  "config setup": [
+    ...setup,
+    "--skip-groq[Skip optional Groq key setup]",
+    "--skip-gemini[Legacy alias for --skip-groq]"
+  ],
   "config groq": ["--stdin[Read the key from standard input]"],
   "config gemini": ["--stdin[Read the key from standard input]"],
   run: [
